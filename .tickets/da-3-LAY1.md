@@ -1,12 +1,13 @@
 ---
-id: da-4t17m-LAY1
+id: da-3-LAY1
 status: open
-deps: [da-j5tsk]
+deps: [da-2]
 links: []
 created: 2026-10-29T07:05:59Z
 type: feature
 priority: 1
-parent: da-s1gk2
+aliases: [4t17m]
+parent: da-1
 tags: [ready-for-agent]
 ---
 # Автораскладка и render в SVG и PNG без учёта раскладки

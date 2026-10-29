@@ -1,12 +1,13 @@
 ---
-id: da-sx4sw-ED1
+id: da-6-ED1
 status: open
-deps: [da-716kn]
+deps: [da-4]
 links: []
 created: 2026-10-29T07:06:00Z
 type: feature
 priority: 2
-parent: da-s1gk2
+aliases: [sx4sw]
+parent: da-1
 tags: [ready-for-agent]
 ---
 # Редактор раскладки: перетаскивание и закрепление классов

@@ -1,12 +1,13 @@
 ---
-id: da-pfj0m-AGT1
+id: da-5-AGT1
 status: open
-deps: [da-4t17m]
+deps: [da-3]
 links: []
 created: 2026-10-29T07:06:00Z
 type: task
 priority: 2
-parent: da-s1gk2
+aliases: [pfj0m]
+parent: da-1
 tags: [ready-for-agent]
 ---
 # SKILL.md для агента: как писать диаграммы diagent

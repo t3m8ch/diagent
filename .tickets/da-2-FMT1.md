@@ -1,12 +1,13 @@
 ---
-id: da-j5tsk-FMT1
+id: da-2-FMT1
 status: open
 deps: []
 links: []
 created: 2026-10-29T07:05:59Z
 type: feature
 priority: 1
-parent: da-s1gk2
+aliases: [j5tsk]
+parent: da-1
 tags: [ready-for-agent]
 ---
 # Формат диаграммы, JSON Schema и команда check

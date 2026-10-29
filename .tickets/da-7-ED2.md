@@ -1,12 +1,13 @@
 ---
-id: da-5z9ak-ED2
+id: da-7-ED2
 status: open
-deps: [da-sx4sw]
+deps: [da-6]
 links: []
 created: 2026-10-29T07:06:00Z
 type: feature
 priority: 3
-parent: da-s1gk2
+aliases: [5z9ak]
+parent: da-1
 tags: [ready-for-agent]
 ---
 # Редактор раскладки: изгибы связей и «закрепить всё»
@@ -21,7 +22,7 @@ tags: [ready-for-agent]
 - Сброс изгибов связи (возврат трассировки движку).
 - «Pin all»: закрепить все классы в текущих положениях.
 - «Unpin all»: очистить раскладку классов.
-- Всё — с автосохранением и отменой, как в da-sx4sw.
+- Всё — с автосохранением и отменой, как в da-6.
 
 ## Приёмка
 

@@ -1,12 +1,13 @@
 ---
-id: da-rhyd3-PUB1
+id: da-8-PUB1
 status: open
-deps: [da-pfj0m]
+deps: [da-5]
 links: []
 created: 2026-10-29T07:06:00Z
 type: chore
 priority: 3
-parent: da-s1gk2
+aliases: [rhyd3]
+parent: da-1
 tags: [ready-for-human]
 ---
 # Публикация пакета diagent в npm

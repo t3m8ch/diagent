@@ -1,11 +1,12 @@
 ---
-id: da-s1gk2
+id: da-1
 status: open
 deps: []
 links: []
 created: 2026-10-29T07:05:59Z
 type: epic
 priority: 1
+aliases: [s1gk2]
 ---
 # Инструмент диаграмм классов UML: модель пишет агент, раскладку правит человек
 

@@ -1,12 +1,13 @@
 ---
-id: da-716kn-LAY2
+id: da-4-LAY2
 status: open
-deps: [da-4t17m]
+deps: [da-3]
 links: []
 created: 2026-10-29T07:06:00Z
 type: feature
 priority: 2
-parent: da-s1gk2
+aliases: [716kn]
+parent: da-1
 tags: [ready-for-agent]
 ---
 # Автораскладка учитывает закреплённые классы и изгибы связей
