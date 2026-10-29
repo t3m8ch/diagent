@@ -5,10 +5,10 @@
  */
 import { bendAt, relationAt, insertIndex, type Bend } from "../bends.js";
 import { drawSvg, type Theme } from "../draw.js";
-import { History, inverseOf } from "../history.js";
+import { History } from "../history.js";
 import { applyFileLayout, layoutDiagram, parseFileLayout, type ClassBox, type DiagramGeometry, type FileLayout } from "../layout.js";
 import { parseModel, type Model } from "../model.js";
-import type { LayoutAction } from "../save.js";
+import { inverseOf, type LayoutAction } from "../save.js";
 
 const GRID = 10;
 
@@ -31,7 +31,7 @@ const stage = $("stage");
 const errorsBox = $("errors");
 const statusBox = $("status");
 
-const history = new History();
+const history = new History<LayoutAction>();
 let text = "";
 let model: Model | undefined;
 let auto: DiagramGeometry | undefined; // autolayout without fileLayout

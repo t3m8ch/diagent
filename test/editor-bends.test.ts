@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { bendAt, relationAt, filePoints, insertIndex } from "../src/bends.js";
-import { History, inverseOf } from "../src/history.js";
+import { History } from "../src/history.js";
+import { inverseOf } from "../src/save.js";
 import { parseActions } from "../src/edit.js";
 import { applyActions } from "../src/save.js";
 import { layoutText } from "../src/render.js";

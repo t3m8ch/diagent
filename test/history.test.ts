@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { History, inverseOf } from "../src/history.js";
+import { History } from "../src/history.js";
+import { inverseOf } from "../src/save.js";
 
 describe("History", () => {
   it("undoes and redoes in order, and a new action clears redo", () => {

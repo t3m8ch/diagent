@@ -4,9 +4,10 @@
  * formatting of the model survive); orphaned layout entries are dropped on every save.
  */
 import { Document, isMap, parseDocument } from "yaml";
+import type { FileLayout } from "./layout.js";
 import { buildModel } from "./model.js";
 
-/** What the editor can do to the layout. da-7 adds actions here (pin-all, unpin-all). */
+/** What the editor can do to the layout. */
 export type LayoutAction =
   | { type: "pinClass"; name: string; x: number; y: number }
   | { type: "unpinClass"; name: string }
@@ -98,4 +99,26 @@ export function applyActions(text: string, actions: LayoutAction[]): string {
     else out = text.trimEnd() + "\n" + piece + "\n";
   }
   return out === text ? text : out;
+}
+
+/** The actions that restore `fileLayout` for the things `actions` touch (the undo half of an entry). */
+export function inverseOf(actions: LayoutAction[], fileLayout: FileLayout): LayoutAction[] {
+  const inv: LayoutAction[] = [];
+  for (const a of [...actions].reverse()) {
+    if (a.type === "unpinAll") {
+      for (const [name, old] of Object.entries(fileLayout.classes ?? {})) inv.push({ type: "pinClass", name, ...old });
+    } else if (a.type === "pinAll") {
+      for (const name of Object.keys(a.classes)) {
+        const old = fileLayout.classes?.[name];
+        inv.push(old ? { type: "pinClass", name, ...old } : { type: "unpinClass", name });
+      }
+    } else if (a.type === "pinClass" || a.type === "unpinClass") {
+      const old = fileLayout.classes?.[a.name];
+      inv.push(old ? { type: "pinClass", name: a.name, ...old } : { type: "unpinClass", name: a.name });
+    } else {
+      const old = fileLayout.relations?.[a.key]?.bends;
+      inv.push({ type: "setBends", key: a.key, bends: old ? old.map((b) => [...b] as [number, number]) : null });
+    }
+  }
+  return inv;
 }
