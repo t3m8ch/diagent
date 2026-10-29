@@ -6,7 +6,7 @@ You (or your coding agent) describe the **model** (classes and relations) in a `
 
 > **Pre-1.0: the format may change without notice.**
 
-![Kolobok class diagram](docs/kolobok.png)
+![Kolobok class diagram](https://raw.githubusercontent.com/t3m8ch/diagent/master/docs/kolobok.png)
 
 ## Install
 
