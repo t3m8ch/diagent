@@ -1,11 +1,12 @@
 ---
 id: da-3-LAY1
-status: open
+status: in_progress
 deps: [da-2]
 links: []
 created: 2026-10-29T07:05:59Z
 type: feature
 priority: 1
+assignee: t3m8ch
 aliases: [4t17m]
 parent: da-1
 tags: [ready-for-agent]
