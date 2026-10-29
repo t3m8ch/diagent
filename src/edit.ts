@@ -37,21 +37,22 @@ const PAGE = `<!doctype html>
 :root { color-scheme: light dark; --bg: #fff; --fg: #000; --muted: #666; --err: #b00020; --accent: #1a73e8; }
 @media (prefers-color-scheme: dark) { :root { --bg: #000; --fg: #fff; --muted: #999; --err: #ff6b6b; --accent: #8ab4f8; } }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font: 13px system-ui, sans-serif; }
-#bar { position: fixed; top: 0; left: 0; right: 0; padding: 6px 12px; display: flex; gap: 16px; align-items: center;
-  border-bottom: 1px solid var(--muted); background: var(--bg); z-index: 2; }
+body { display: flex; flex-direction: column; overflow: hidden; }
+#bar { padding: 6px 12px; display: flex; gap: 16px; align-items: center; border-bottom: 1px solid var(--muted); background: var(--bg); }
+#zoom { min-width: 3.5em; text-align: right; font-variant-numeric: tabular-nums; }
 #bar .hint { color: var(--muted); }
 #bar button { font: inherit; }
 #status { margin-left: auto; color: var(--muted); }
 #errors { display: none; margin: 0; padding: 8px 12px; color: var(--err); font-family: ui-monospace, monospace; white-space: pre-wrap;
   border-bottom: 1px solid var(--err); }
-#stage { padding: 48px 12px 12px; overflow: auto; }
+#stage { flex: 1; min-height: 0; position: relative; overflow: hidden; background: var(--bg); touch-action: none; }
 #stage.invalid { opacity: 0.6; }
 svg { display: block; }
 .pin { cursor: grab; }
 </style>
 </head>
 <body>
-<div id="bar"><b>diagent</b><span id="file"></span><span class="hint" title="Click a line to select it, click it again (or drag) to add a bend, drag a bend to move it, double-click a bend to remove it. Ctrl+Z / Ctrl+Shift+Z: undo / redo.">Drag to pin · double-click to unpin · click a line to add bends</span><button id="reset-bends" disabled>Reset bends</button><button id="pin-all">Pin all</button><button id="unpin-all">Unpin all</button><span id="status"></span></div>
+<div id="bar"><b>diagent</b><span id="file"></span><span class="hint" title="Click a line to select it, click it again (or drag) to add a bend, drag a bend to move it, double-click a bend to remove it. Ctrl+Z / Ctrl+Shift+Z: undo / redo. Wheel or two fingers: move the scene; Ctrl/Cmd + wheel or pinch: zoom; drag empty space, middle button or Space + drag: pan; Shift+1: fit; Ctrl+0: 100%; Ctrl+= / Ctrl+-: zoom step.">Drag to pin · double-click to unpin · click a line to add bends</span><button id="reset-bends" disabled>Reset bends</button><button id="pin-all">Pin all</button><button id="unpin-all">Unpin all</button><span id="zoom" title="Zoom">100%</span><button id="fit" title="Fit diagram (Shift+1)">Fit</button><button id="zoom100" title="100% (Ctrl+0)">100%</button><span id="status"></span></div>
 <pre id="errors"></pre>
 <div id="stage"></div>
 <script src="/client.js"></script>
