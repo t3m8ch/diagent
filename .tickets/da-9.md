@@ -1,6 +1,6 @@
 ---
 id: da-9
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-29T08:16:26Z
@@ -10,6 +10,8 @@ assignee: t3m8ch
 aliases: [rpc9t]
 parent: da-1
 tags: [ready-for-agent]
+closed: 2026-10-29T08:36:58Z
+close-reason: completed
 ---
 # Редактор раскладки: зум и перемещение камеры
 
