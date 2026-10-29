@@ -9,7 +9,8 @@
   },
   "files": [
     "dist",
-    "examples"
+    "examples",
+    "SKILL.md"
   ],
   "engines": {
     "node": ">=20"
