@@ -1,6 +1,6 @@
 # diagent tickets
 
-This orphan branch holds the tickets of `diagent` as Markdown files, and `tk`, the tool that reads and writes them. It shares no history with `main`; check it out as its own worktree:
+This orphan branch holds the tickets of `diagent` as Markdown files, and `tk`, the tool that reads and writes them. It shares no history with `master`; check it out as its own worktree:
 
 ```bash
 git worktree add ../diagent-worktrees/tickets tickets
