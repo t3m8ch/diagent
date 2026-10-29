@@ -1,6 +1,6 @@
 ---
 id: da-7-ED2
-status: in_progress
+status: closed
 deps: [da-6]
 links: []
 created: 2026-10-29T07:06:00Z
@@ -10,6 +10,8 @@ assignee: t3m8ch
 aliases: [5z9ak]
 parent: da-1
 tags: [ready-for-agent]
+closed: 2026-10-29T08:36:58Z
+close-reason: completed
 ---
 # Редактор раскладки: изгибы связей и «закрепить всё»
 
