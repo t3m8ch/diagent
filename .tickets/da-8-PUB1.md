@@ -21,3 +21,20 @@ tags: [ready-for-human]
 - Версии до 1.0 без обещания совместимости формата.
 
 Нужен человек: учётная запись npm и проверка имени пакета.
+
+## Comments
+
+### 2026-10-29T08:41:17Z · t3m8ch
+
+Подготовка влита в `master`:
+- `README.md`;
+- `schema/diagent.schema.json`, генерируется при `pnpm build`;
+- `package.json` версии 0.1.0 с `files`, лицензией `GPL-3.0-only`, `repository` и `prepack`.
+
+Архив `pnpm pack` установлен в чистую папку; `check`, `render`, `schema` и `edit` из него работают.
+
+Осталась публикация владельцем:
+1. `npm login`
+2. `pnpm publish --dry-run --no-git-checks`
+3. `pnpm publish --access public --no-git-checks`
+4. проверить `npm view diagent`
