@@ -1,0 +1,220 @@
+# Диаграмма классов «Колобок». Раскладки нет: её считает автораскладка.
+classes:
+  Персонаж:
+    abstract: true
+    attributes:
+      - { name: имя, type: String }
+
+  Человек:
+    abstract: true
+
+  Старик:
+    attributes:
+      - { name: старуха, type: Старуха }
+    operations:
+      - { name: попроситьИспечьКолобок }
+
+  Старуха:
+    attributes:
+      - { name: хранилища, type: "List<Хранилище>" }
+      - { name: сметана, type: Ингредиент }
+      - { name: масло, type: Ингредиент }
+      - { name: окошко, type: Место }
+    operations:
+      - name: замеситьТесто
+        visibility: private
+        params: { колобок: Колобок, сметана: Ингредиент }
+      - name: изжарить
+        visibility: private
+        params: { колобок: Колобок, масло: Ингредиент }
+      - name: положитьОстужаться
+        visibility: private
+        params: { колобок: Колобок, окошко: Место }
+      - name: испечьКолобок
+        params: { старик: Старик }
+
+  Хранилище:
+    attributes:
+      - { name: название, type: String }
+      - { name: мука, type: Ингредиент }
+    operations:
+      - { name: собратьМуку, returns: Ингредиент }
+
+  Ингредиент:
+    attributes:
+      - { name: вид, type: ВидИнгредиента }
+      - { name: количество, type: Integer }
+
+  ВидИнгредиента:
+    kind: enum
+    literals: [МУКА, СМЕТАНА, МАСЛО]
+
+  Место:
+    attributes:
+      - { name: название, type: String }
+      - { name: следующее, type: Место }
+      - { name: встречный, type: Зверь }
+
+  Колобок:
+    attributes:
+      - { name: состав, type: "List<Ингредиент>" }
+      - { name: хозяева, type: "List<Человек>" }
+      - { name: текущееМесто, type: Место }
+      - { name: состояние, type: СостояниеКолобка }
+      - { name: песня, type: Песня }
+    operations:
+      - { name: полежать }
+      - { name: убежать, visibility: private }
+      - { name: покатиться }
+      - name: спетьПесню
+        params: { слушатель: Зверь }
+      - name: уйтиОт
+        visibility: private
+        params: { персонаж: Персонаж }
+      - { name: вскочитьНаМордочку }
+      - { name: прыгнутьНаЯзык }
+
+  СостояниеКолобка:
+    kind: enum
+    literals:
+      - МУКА
+      - ТЕСТО
+      - ЖАРИТСЯ
+      - ОСТЫВАЕТ
+      - КАТИТСЯ
+      - ВСТРЕТИЛ_ЗВЕРЯ
+      - ПОЁТ_ПЕСНЮ
+      - НА_МОРДОЧКЕ
+      - НА_ЯЗЫКЕ
+      - СЪЕДЕН
+
+  Песня:
+    attributes:
+      - { name: упомянутые, type: "List<Персонаж>" }
+    operations:
+      - name: упомянуть
+        params: { персонаж: Персонаж }
+      - name: исполнить
+        params: { слушатель: Зверь }
+        returns: String
+
+  Зверь:
+    abstract: true
+    attributes:
+      - { name: прозвище, type: String }
+    operations:
+      - name: встретить
+        params: { колобок: Колобок }
+      - name: пригрозитьСъесть
+        visibility: private
+        params: { колобок: Колобок }
+      - name: выслушатьПесню
+        params: { текст: String, певец: Колобок }
+
+  Заяц: {}
+  Волк: {}
+  Медведь: {}
+
+  Лиса:
+    operations:
+      - name: встретить
+        params: { колобок: Колобок }
+      - name: выслушатьПесню
+        params: { текст: String, певец: Колобок }
+      - name: похвалить
+        visibility: private
+        params: { колобок: Колобок }
+      - name: попроситьСпетьПогромче
+        visibility: private
+        params: { колобок: Колобок }
+      - name: попроситьСестьНаЯзычок
+        visibility: private
+        params: { колобок: Колобок }
+      - name: съесть
+        visibility: private
+        params: { колобок: Колобок }
+
+relations:
+  generalization:
+    - { child: Человек, parent: Персонаж }
+    - { child: Старик, parent: Человек }
+    - { child: Старуха, parent: Человек }
+    - { child: Колобок, parent: Персонаж }
+    - { child: Зверь, parent: Персонаж }
+    - { child: Заяц, parent: Зверь }
+    - { child: Волк, parent: Зверь }
+    - { child: Медведь, parent: Зверь }
+    - { child: Лиса, parent: Зверь }
+
+  composition:
+    - { whole: Колобок, part: Песня, whole_multiplicity: "1", part_multiplicity: "1" }
+
+  aggregation:
+    - name: состав
+      whole: Колобок
+      part: Ингредиент
+      whole_multiplicity: "0..1"
+      part_multiplicity: "1..*"
+
+  dependency:
+    - { client: Старуха, supplier: Колобок, stereotype: create }
+    - { client: Зверь, supplier: Колобок, stereotype: use }
+    - { client: Колобок, supplier: Зверь, stereotype: use }
+
+  association:
+    - name: просит испечь
+      reading: forward
+      ends:
+        - { class: Старик, multiplicity: "1" }
+        - { class: Старуха, multiplicity: "1", navigable: true }
+    - name: собирает муку из
+      reading: forward
+      ends:
+        - { class: Старуха, multiplicity: "1" }
+        - { class: Хранилище, multiplicity: "1..*", navigable: true }
+    - name: хранит
+      reading: forward
+      ends:
+        - { class: Старуха, multiplicity: "0..1" }
+        - { class: Ингредиент, multiplicity: "2", navigable: true }
+    - name: кладёт остужаться на
+      reading: forward
+      ends:
+        - { class: Старуха, multiplicity: "0..1" }
+        - { class: Место, multiplicity: "1", navigable: true }
+    - name: живёт у
+      reading: forward
+      ends:
+        - { class: Колобок, multiplicity: "*" }
+        - { class: Человек, multiplicity: "1..*", navigable: true }
+    - name: упоминает
+      reading: forward
+      ends:
+        - { class: Песня, multiplicity: "*" }
+        - { class: Персонаж, multiplicity: "0..*", navigable: true }
+    - name: находится в
+      reading: forward
+      ends:
+        - { class: Колобок, multiplicity: "*" }
+        - { class: Место, multiplicity: "0..1", navigable: true }
+    - ends:
+        - { class: Колобок, multiplicity: "*" }
+        - { class: СостояниеКолобка, multiplicity: "1", navigable: true }
+    - name: содержит
+      reading: forward
+      ends:
+        - { class: Хранилище, multiplicity: "0..1" }
+        - { class: Ингредиент, multiplicity: "0..1", navigable: true }
+    - ends:
+        - { class: Ингредиент, multiplicity: "*" }
+        - { class: ВидИнгредиента, multiplicity: "1", navigable: true }
+    - name: ведёт в
+      reading: forward
+      ends:
+        - { class: Место, multiplicity: "0..1" }
+        - { class: Место, multiplicity: "0..1" }
+    - name: встречный
+      reading: forward
+      ends:
+        - { class: Место, multiplicity: "0..1" }
+        - { class: Зверь, multiplicity: "0..1", navigable: true }

@@ -22,3 +22,12 @@ Triage uses the five default canonical label names as `tk` tags. See `docs/agent
 ### Domain docs
 
 Domain documentation uses a single-context layout. See `docs/agents/domain.md`.
+
+## Development
+
+pnpm is the only package manager (`packageManager: pnpm@12.15.0`). Never run `npm` or `npx`; use `pnpm add`, `pnpm exec`, `pnpm dlx`.
+
+- `pnpm test`: run the tests (vitest).
+- `pnpm typecheck`: type-check `src` and `test` (`tsc --noEmit`).
+- `pnpm build`: compile `src` to `dist` (the `diagent` bin is `dist/cli.js`).
+- `pnpm dev check examples/kolobok.cd.yaml`: run the CLI from source (tsx).

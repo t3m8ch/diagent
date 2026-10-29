@@ -1,0 +1,33 @@
+{
+  "name": "diagent",
+  "version": "0.0.0",
+  "description": "UML class diagrams written by agents, laid out by a deterministic engine",
+  "type": "module",
+  "packageManager": "pnpm@12.15.0",
+  "bin": {
+    "diagent": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "examples"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsx src/cli.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "ajv": "^8.20.0",
+    "yaml": "^2.9.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  }
+}
