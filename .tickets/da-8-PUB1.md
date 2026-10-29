@@ -1,11 +1,12 @@
 ---
 id: da-8-PUB1
-status: open
+status: in_progress
 deps: [da-5]
 links: []
 created: 2026-10-29T07:06:00Z
 type: chore
 priority: 3
+assignee: t3m8ch
 aliases: [rhyd3]
 parent: da-1
 tags: [ready-for-human]
