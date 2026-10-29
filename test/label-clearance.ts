@@ -1,8 +1,8 @@
-import type { DiagramLayout } from "../src/layout.js";
+import type { DiagramGeometry } from "../src/layout.js";
 import { rectsOverlap, segHitsBox } from "../src/route.js";
 
 /** Human-readable problems of the label placement: a label on a class, on a route line, or on another label. */
-export function labelProblems(l: DiagramLayout): string[] {
+export function labelProblems(l: DiagramGeometry): string[] {
   const problems: string[] = [];
   const labels = l.relations.flatMap((e) => e.labels.map((lab) => ({ lab, key: e.key })));
   for (const [i, { lab, key }] of labels.entries()) {

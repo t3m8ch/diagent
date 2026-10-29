@@ -1,6 +1,6 @@
 /** Undo/redo stack of the editor. Generic: an entry is a pair of action lists (browser-safe). */
 import type { LayoutAction } from "./save.js";
-import type { Pins } from "./layout.js";
+import type { FileLayout } from "./layout.js";
 
 export interface HistoryEntry {
   redo: LayoutAction[];
@@ -33,22 +33,22 @@ export class History {
   }
 }
 
-/** The actions that restore `pins` for the things `actions` touch (the undo half of an entry). */
-export function inverseOf(actions: LayoutAction[], pins: Pins): LayoutAction[] {
+/** The actions that restore `fileLayout` for the things `actions` touch (the undo half of an entry). */
+export function inverseOf(actions: LayoutAction[], fileLayout: FileLayout): LayoutAction[] {
   const inv: LayoutAction[] = [];
   for (const a of [...actions].reverse()) {
     if (a.type === "unpinAll") {
-      for (const [name, old] of Object.entries(pins.classes ?? {})) inv.push({ type: "pinClass", name, ...old });
+      for (const [name, old] of Object.entries(fileLayout.classes ?? {})) inv.push({ type: "pinClass", name, ...old });
     } else if (a.type === "pinAll") {
       for (const name of Object.keys(a.classes)) {
-        const old = pins.classes?.[name];
+        const old = fileLayout.classes?.[name];
         inv.push(old ? { type: "pinClass", name, ...old } : { type: "unpinClass", name });
       }
     } else if (a.type === "pinClass" || a.type === "unpinClass") {
-      const old = pins.classes?.[a.name];
+      const old = fileLayout.classes?.[a.name];
       inv.push(old ? { type: "pinClass", name: a.name, ...old } : { type: "unpinClass", name: a.name });
     } else {
-      const old = pins.relations?.[a.key]?.bends;
+      const old = fileLayout.relations?.[a.key]?.bends;
       inv.push({ type: "setBends", key: a.key, bends: old ? old.map((b) => [...b] as [number, number]) : null });
     }
   }

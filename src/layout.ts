@@ -2,7 +2,7 @@
  * Automatic layout: model -> plain data (class boxes, relation routes, label positions).
  * Browser-safe (elkjs bundle, no Node imports). Drawing lives in `draw.ts` and only
  * reads the result of this module, so pinned classes and bends (da-4) and the
- * editor (da-6) can produce or modify a `DiagramLayout` without touching the drawing code.
+ * editor (da-6) can produce or modify a `DiagramGeometry` without touching the drawing code.
  */
 import ElkModule from "elkjs/lib/elk.bundled.js";
 import { rectsOverlap, routeAround, segHitsBox } from "./route.js";
@@ -79,7 +79,7 @@ export interface RelationRoute {
   reversed: boolean;
 }
 
-export interface DiagramLayout {
+export interface DiagramGeometry {
   /** Top-left of the drawing area; 0,0 unless pinned classes sit at negative coordinates. */
   originX?: number;
   originY?: number;
@@ -193,11 +193,11 @@ const elk = new ELK();
 const round = (n: number) => Math.round(n);
 
 /**
- * Computes class boxes, edge routes and label positions. With `pins` (the file's `layout`
- * section, see `parsePins`) pinned classes stand exactly there, the rest is arranged around
- * them, and relations with `bends` pass through those points (see `applyPins`).
+ * Computes class boxes, relation routes and label positions. With `fileLayout` (the file's `layout`
+ * section, see `parseFileLayout`) pinned classes stand exactly there, the rest is arranged around
+ * them, and relations with `bends` pass through those points (see `applyFileLayout`).
  */
-export async function layoutDiagram(model: Model, pins?: Pins): Promise<DiagramLayout> {
+export async function layoutDiagram(model: Model, fileLayout?: FileLayout): Promise<DiagramGeometry> {
   const boxes = new Map(model.classes.map((c) => [c.name, measureClass(c)]));
 
   const specs: RelationSpec[] = model.relations.map((relation) => ({
@@ -287,8 +287,8 @@ export async function layoutDiagram(model: Model, pins?: Pins): Promise<DiagramL
   });
 
   const auto = fitArea(settleLabels({ width: round(result.width ?? 0), height: round(result.height ?? 0), classes, relations: routes }), false);
-  const hasPins = pins && (Object.keys(pins.classes ?? {}).length > 0 || Object.keys(pins.relations ?? {}).length > 0);
-  return hasPins ? applyPins(auto, model, pins) : auto;
+  const hasFileLayout = fileLayout && (Object.keys(fileLayout.classes ?? {}).length > 0 || Object.keys(fileLayout.relations ?? {}).length > 0);
+  return hasFileLayout ? applyFileLayout(auto, model, fileLayout) : auto;
 }
 
 /** Association name with a reading-direction glyph; the glyph is chosen after layout. */
@@ -302,7 +302,7 @@ function centerText(r: Relation, g: string): string {
 
 // ---- pinned classes and bends (da-4) --------------------------------------
 /** The file's `layout` section. Orphaned or malformed entries are ignored (`check` warns about them). */
-export interface Pins {
+export interface FileLayout {
   classes?: Record<string, { x: number; y: number }>;
   /** `bends` run from the first to the second end of the relation, as in the file. */
   relations?: Record<string, { bends?: [number, number][] }>;
@@ -310,23 +310,23 @@ export interface Pins {
 
 const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 
-/** Cleans the raw `layout` object from `parseModel` into `Pins`, keeping only entries that name something in the model. */
-export function parsePins(raw: unknown, model: Model): Pins {
-  const pins: Pins = { classes: {}, relations: {} };
+/** Cleans the raw `layout` object from `parseModel` into `FileLayout`, keeping only entries that name something in the model. */
+export function parseFileLayout(raw: unknown, model: Model): FileLayout {
+  const fileLayout: FileLayout = { classes: {}, relations: {} };
   const o = (raw ?? {}) as Record<string, any>;
   const names = new Set(model.classes.map((c) => c.name));
   const keys = new Set(model.relations.map((r) => r.key));
   for (const [name, p] of Object.entries(o.classes ?? {}))
     if (names.has(name) && isNum((p as any)?.x) && isNum((p as any)?.y))
-      pins.classes![name] = { x: Math.round((p as any).x), y: Math.round((p as any).y) };
+      fileLayout.classes![name] = { x: Math.round((p as any).x), y: Math.round((p as any).y) };
   for (const [key, r] of Object.entries(o.relations ?? {})) {
     const bends = (r as any)?.bends;
     if (keys.has(key) && Array.isArray(bends)) {
       const good = bends.filter((b: unknown) => Array.isArray(b) && isNum(b[0]) && isNum(b[1]));
-      if (good.length > 0) pins.relations![key] = { bends: good.map((b: number[]) => [Math.round(b[0]!), Math.round(b[1]!)]) };
+      if (good.length > 0) fileLayout.relations![key] = { bends: good.map((b: number[]) => [Math.round(b[0]!), Math.round(b[1]!)]) };
     }
   }
-  return pins;
+  return fileLayout;
 }
 
 const GAP = 20;
@@ -348,8 +348,8 @@ const overlaps = (a: ClassBox, b: ClassBox, gap = GAP) =>
  * 4. Labels that collide with a class (and all labels of re-routed relations) are put at the
  *    first free candidate spot next to the relation.
  */
-export function applyPins(auto: DiagramLayout, model: Model, pins: Pins): DiagramLayout {
-  const pinned = pins.classes ?? {};
+export function applyFileLayout(auto: DiagramGeometry, model: Model, fileLayout: FileLayout): DiagramGeometry {
+  const pinned = fileLayout.classes ?? {};
   const first = auto.classes.find((c) => pinned[c.name]);
   const base = first ? { x: pinned[first.name]!.x - first.x, y: pinned[first.name]!.y - first.y } : { x: 0, y: 0 };
   const autoBy = new Map(auto.classes.map((c) => [c.name, c]));
@@ -405,7 +405,7 @@ export function applyPins(auto: DiagramLayout, model: Model, pins: Pins): Diagra
     const ta = autoBy.get(e.target)!;
     const ds = { x: s.x - sa.x, y: s.y - sa.y };
     const dt = { x: t.x - ta.x, y: t.y - ta.y };
-    const bends = pins.relations?.[e.key]?.bends;
+    const bends = fileLayout.relations?.[e.key]?.bends;
     let routed: RelationRoute | undefined;
     let rerouted = false;
     if (e.source === e.target) routed = shift(e, ds.x, ds.y);
@@ -433,7 +433,7 @@ export function applyPins(auto: DiagramLayout, model: Model, pins: Pins): Diagra
 }
 
 /** Drawing area: everything we know about, plus the margin. */
-function fitArea(layout: DiagramLayout, always: boolean): DiagramLayout {
+function fitArea(layout: DiagramGeometry, always: boolean): DiagramGeometry {
   const { classes, relations } = layout;
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   const see = (x: number, y: number) => {
@@ -673,7 +673,7 @@ type Seg = [Point, Point];
  * or on another label to the first free candidate spot next to its own relation. Labels that
  * are fine stay where they are. Pure.
  */
-function settleLabels(layout: DiagramLayout): DiagramLayout {
+function settleLabels(layout: DiagramGeometry): DiagramGeometry {
   const { classes, relations } = layout;
   const segs: Seg[] = relations.flatMap((e) => e.points.slice(1).map((p, i): Seg => [e.points[i]!, p]));
   const onLine = (l: RelationLabel) => segs.some(([a, b]) => segHitsBox(a, b, l));

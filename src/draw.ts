@@ -1,5 +1,5 @@
 /**
- * SVG drawing of a `DiagramLayout`. Pure function, browser-safe (no Node imports);
+ * SVG drawing of a `DiagramGeometry`. Pure function, browser-safe (no Node imports);
  * knows nothing about the model or ELK.
  */
 import {
@@ -10,7 +10,7 @@ import {
   PAD_X,
   PAD_Y,
   type ClassBox,
-  type DiagramLayout,
+  type DiagramGeometry,
   type RelationLabel,
   type RelationRoute,
   type Marker,
@@ -34,7 +34,7 @@ const esc = (s: string) =>
 const MARKER_LEN: Record<Marker, number> = { none: 0, arrow: 0, triangle: 12, diamond: 16, "filled-diamond": 16 };
 
 /** Draws the layout as a standalone SVG document. */
-export function drawSvg(layout: DiagramLayout, theme: Theme = "light"): string {
+export function drawSvg(layout: DiagramGeometry, theme: Theme = "light"): string {
   const { fg, bg } = COLORS[theme];
   const out: string[] = [];
   const ox = layout.originX ?? 0;

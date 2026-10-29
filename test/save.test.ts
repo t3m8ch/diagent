@@ -13,7 +13,7 @@ relations:
 `;
 
 describe("applyActions (file text, actions -> file text)", () => {
-  it("pins a class and changes nothing but layout, comments included", () => {
+  it("fileLayout a class and changes nothing but layout, comments included", () => {
     const out = applyActions(model, [{ type: "pinClass", name: "A", x: 40, y: 20 }]);
     expect(out.startsWith(model.trimEnd())).toBe(true);
     expect(out).toContain("layout:");

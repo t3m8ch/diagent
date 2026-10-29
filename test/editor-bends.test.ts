@@ -47,7 +47,7 @@ describe("da-7 acceptance", () => {
 const model = "classes:\n  A: {}\n  B: {}\n  C: {}\nrelations:\n  generalization:\n    - { child: B, parent: A }\n";
 
 describe("pinAll / unpinAll in the save pipeline", () => {
-  it("pins listed classes, skips unknown names, keeps the rest of the file", () => {
+  it("fileLayout listed classes, skips unknown names, keeps the rest of the file", () => {
     const out = applyActions(model, [{ type: "pinAll", classes: { A: { x: 0, y: 0 }, B: { x: 10, y: 20 }, Nope: { x: 1, y: 1 } } }]);
     expect(out.startsWith(model.trimEnd())).toBe(true);
     expect(out).toContain("A: { x: 0, y: 0 }");
@@ -67,15 +67,15 @@ describe("pinAll / unpinAll in the save pipeline", () => {
     expect(applyActions(cleared, [{ type: "setBends", key, bends: null }]).trimEnd()).toBe(model.trimEnd());
   });
 
-  it("history restores previous pins for pinAll and unpinAll", () => {
-    const pins = { classes: { A: { x: 1, y: 2 } }, relations: {} };
-    expect(inverseOf([{ type: "pinAll", classes: { A: { x: 9, y: 9 }, B: { x: 0, y: 0 } } }], pins)).toEqual([
+  it("history restores previous fileLayout for pinAll and unpinAll", () => {
+    const fileLayout = { classes: { A: { x: 1, y: 2 } }, relations: {} };
+    expect(inverseOf([{ type: "pinAll", classes: { A: { x: 9, y: 9 }, B: { x: 0, y: 0 } } }], fileLayout)).toEqual([
       { type: "pinClass", name: "A", x: 1, y: 2 },
       { type: "unpinClass", name: "B" },
     ]);
-    expect(inverseOf([{ type: "unpinAll" }], pins)).toEqual([{ type: "pinClass", name: "A", x: 1, y: 2 }]);
+    expect(inverseOf([{ type: "unpinAll" }], fileLayout)).toEqual([{ type: "pinClass", name: "A", x: 1, y: 2 }]);
     const h = new History();
-    h.push({ redo: [{ type: "unpinAll" }], undo: inverseOf([{ type: "unpinAll" }], pins) });
+    h.push({ redo: [{ type: "unpinAll" }], undo: inverseOf([{ type: "unpinAll" }], fileLayout) });
     expect(h.undo()).toEqual([{ type: "pinClass", name: "A", x: 1, y: 2 }]);
   });
 

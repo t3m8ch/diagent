@@ -10,7 +10,7 @@ import { buildModel } from "./model.js";
 export type LayoutAction =
   | { type: "pinClass"; name: string; x: number; y: number }
   | { type: "unpinClass"; name: string }
-  /** Pins every listed class at the given position ("Pin all": the editor sends the current positions). */
+  /** FileLayout every listed class at the given position ("Pin all": the editor sends the current positions). */
   | { type: "pinAll"; classes: Record<string, { x: number; y: number }> }
   /** Clears the class layout; bends are kept. */
   | { type: "unpinAll" }

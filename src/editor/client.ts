@@ -1,12 +1,12 @@
 /**
  * Browser side of `diagent edit`. Runs the same layout and drawing code as `render`
- * (`layoutDiagram`, `applyPins`, `drawSvg`); the server only holds the file.
+ * (`layoutDiagram`, `applyFileLayout`, `drawSvg`); the server only holds the file.
  * Bundled with esbuild into `client.js` (`pnpm build`).
  */
 import { bendAt, relationAt, insertIndex, type Bend } from "../bends.js";
 import { drawSvg, type Theme } from "../draw.js";
 import { History, inverseOf } from "../history.js";
-import { applyPins, layoutDiagram, parsePins, type ClassBox, type DiagramLayout, type Pins } from "../layout.js";
+import { applyFileLayout, layoutDiagram, parseFileLayout, type ClassBox, type DiagramGeometry, type FileLayout } from "../layout.js";
 import { parseModel, type Model } from "../model.js";
 import type { LayoutAction } from "../save.js";
 
@@ -34,15 +34,15 @@ const statusBox = $("status");
 const history = new History();
 let text = "";
 let model: Model | undefined;
-let auto: DiagramLayout | undefined; // autolayout without pins
-let pins: Pins = {};
-let shown: DiagramLayout | undefined; // what is on screen now
+let auto: DiagramGeometry | undefined; // autolayout without fileLayout
+let fileLayout: FileLayout = {};
+let shown: DiagramGeometry | undefined; // what is on screen now
 let drag: { name: string; dx: number; dy: number; box: ClassBox; moved: boolean } | undefined;
 /** Relation whose bends are shown and editable (relation key). */
 let selected: string | undefined;
 /** Bends of `selected` while one is being dragged or created (not saved yet). */
 let draftBends: Bend[] | undefined;
-const bendsOf = (key: string): Bend[] => (key === selected && draftBends ? draftBends : pins.relations?.[key]?.bends ?? []);
+const bendsOf = (key: string): Bend[] => (key === selected && draftBends ? draftBends : fileLayout.relations?.[key]?.bends ?? []);
 
 const theme = (): Theme => (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
 
@@ -50,12 +50,12 @@ function status(s: string) {
   statusBox.textContent = s;
 }
 
-function draw(layout: DiagramLayout) {
+function draw(layout: DiagramGeometry) {
   shown = layout;
   stage.innerHTML = drawSvg(layout, theme());
   const svg = stage.querySelector("svg")!;
   const ns = "http://www.w3.org/2000/svg";
-  const current = drag ? { ...pins.classes, [drag.name]: { x: 0, y: 0 } } : pins.classes ?? {};
+  const current = drag ? { ...fileLayout.classes, [drag.name]: { x: 0, y: 0 } } : fileLayout.classes ?? {};
   for (const c of layout.classes) {
     if (!current[c.name]) continue;
     const dot = document.createElementNS(ns, "circle");
@@ -88,9 +88,9 @@ function draw(layout: DiagramLayout) {
     }
   }
   const resetBtn = $("reset-bends") as HTMLButtonElement;
-  resetBtn.disabled = !(selected && (pins.relations?.[selected]?.bends?.length ?? 0) > 0);
-  ($("pin-all") as HTMLButtonElement).disabled = !model || layout.classes.every((c) => pins.classes?.[c.name]?.x === c.x && pins.classes[c.name]?.y === c.y);
-  ($("unpin-all") as HTMLButtonElement).disabled = Object.keys(pins.classes ?? {}).length === 0;
+  resetBtn.disabled = !(selected && (fileLayout.relations?.[selected]?.bends?.length ?? 0) > 0);
+  ($("pin-all") as HTMLButtonElement).disabled = !model || layout.classes.every((c) => fileLayout.classes?.[c.name]?.x === c.x && fileLayout.classes[c.name]?.y === c.y);
+  ($("unpin-all") as HTMLButtonElement).disabled = Object.keys(fileLayout.classes ?? {}).length === 0;
 }
 
 /** Applies a fresh file state: redraws when valid, otherwise shows the errors over the last valid picture. */
@@ -114,8 +114,8 @@ async function setState(state: FileState) {
   text = state.text;
   model = parsed.model;
   auto = newAuto;
-  pins = parsePins(parsed.layout, model);
-  draw(applyPins(auto, model, pins));
+  fileLayout = parseFileLayout(parsed.layout, model);
+  draw(applyFileLayout(auto, model, fileLayout));
   status("saved");
 }
 
@@ -141,7 +141,7 @@ function send(actions: LayoutAction[]): Promise<void> {
 
 /** A user action: records undo information, then saves. */
 function perform(actions: LayoutAction[]) {
-  history.push({ redo: actions, undo: inverseOf(actions, pins) });
+  history.push({ redo: actions, undo: inverseOf(actions, fileLayout) });
   return send(actions);
 }
 
@@ -187,7 +187,7 @@ stage.addEventListener("pointerdown", (e) => {
     frame = requestAnimationFrame(() => {
       frame = 0;
       if (!drag) return;
-      draw(applyPins(auto!, model!, draftPins()));
+      draw(applyFileLayout(auto!, model!, draftPins()));
     });
   };
   const onUp = () => {
@@ -198,9 +198,9 @@ stage.addEventListener("pointerdown", (e) => {
     drag = undefined;
     stage.style.cursor = "";
     const target = draftPinsFor(d);
-    const old = pins.classes?.[d.name];
+    const old = fileLayout.classes?.[d.name];
     if (!d.moved || (old && old.x === target.x && old.y === target.y)) {
-      draw(applyPins(auto!, model!, pins));
+      draw(applyFileLayout(auto!, model!, fileLayout));
       return;
     }
     perform([{ type: "pinClass", name: d.name, x: target.x, y: target.y }]);
@@ -226,7 +226,7 @@ function startBendInteraction(e: PointerEvent) {
   e.preventDefault();
   if (hit.key !== selected) {
     selected = hit.key;
-    draw(applyPins(auto!, model!, pins));
+    draw(applyFileLayout(auto!, model!, fileLayout));
     return; // first click only selects
   }
   const before = bendsOf(hit.key).map((b) => [...b] as Bend);
@@ -250,7 +250,7 @@ function startBendInteraction(e: PointerEvent) {
     place(p);
     frame = requestAnimationFrame(() => {
       frame = 0;
-      draw(applyPins(auto!, model!, draftRelationPins(hit.key)));
+      draw(applyFileLayout(auto!, model!, draftRelationPins(hit.key)));
     });
   };
   const onUp = (u: PointerEvent) => {
@@ -262,7 +262,7 @@ function startBendInteraction(e: PointerEvent) {
     const next = draftBends;
     draftBends = undefined;
     if (!next || (!isNew && !moved) || JSON.stringify(next) === JSON.stringify(before)) {
-      draw(applyPins(auto!, model!, pins));
+      draw(applyFileLayout(auto!, model!, fileLayout));
       return;
     }
     perform([{ type: "setBends", key: hit.key, bends: next }]);
@@ -271,15 +271,15 @@ function startBendInteraction(e: PointerEvent) {
   window.addEventListener("pointerup", onUp);
 }
 
-function draftRelationPins(key: string): Pins {
-  return { ...pins, relations: { ...pins.relations, [key]: { bends: draftBends ?? [] } } };
+function draftRelationPins(key: string): FileLayout {
+  return { ...fileLayout, relations: { ...fileLayout.relations, [key]: { bends: draftBends ?? [] } } };
 }
 
 function draftPinsFor(d: NonNullable<typeof drag>) {
   return { x: snap(d.box.x + d.dx), y: snap(d.box.y + d.dy) };
 }
-function draftPins(): Pins {
-  return { ...pins, classes: { ...pins.classes, [drag!.name]: draftPinsFor(drag!) } };
+function draftPins(): FileLayout {
+  return { ...fileLayout, classes: { ...fileLayout.classes, [drag!.name]: draftPinsFor(drag!) } };
 }
 
 stage.addEventListener("dblclick", (e) => {
@@ -290,12 +290,12 @@ stage.addEventListener("dblclick", (e) => {
     if (i >= 0) perform([{ type: "setBends", key: selected, bends: bends.filter((_, j) => j !== i) }]);
     return;
   }
-  if (box && pins.classes?.[box.name]) perform([{ type: "unpinClass", name: box.name }]);
+  if (box && fileLayout.classes?.[box.name]) perform([{ type: "unpinClass", name: box.name }]);
 });
 
 /** Toolbar actions. */
 $("reset-bends").addEventListener("click", () => {
-  if (selected && pins.relations?.[selected]?.bends?.length) perform([{ type: "setBends", key: selected, bends: null }]);
+  if (selected && fileLayout.relations?.[selected]?.bends?.length) perform([{ type: "setBends", key: selected, bends: null }]);
 });
 $("pin-all").addEventListener("click", () => {
   if (!shown) return;

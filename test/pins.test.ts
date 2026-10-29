@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { layoutDiagram, parsePins, type DiagramLayout } from "../src/layout.js";
+import { layoutDiagram, parseFileLayout, type DiagramGeometry } from "../src/layout.js";
 import { parseModel } from "../src/model.js";
 import { rectsOverlap, segHitsBox } from "../src/route.js";
 import { layoutText, renderSvg } from "../src/render.js";
@@ -8,8 +8,8 @@ import { labelProblems } from "./label-clearance.js";
 
 const kolobok = readFileSync(new URL("../examples/kolobok.cd.yaml", import.meta.url), "utf8");
 
-const pos = (l: DiagramLayout) => Object.fromEntries(l.classes.map((c) => [c.name, { x: c.x, y: c.y }]));
-const noOverlap = (l: DiagramLayout) => {
+const pos = (l: DiagramGeometry) => Object.fromEntries(l.classes.map((c) => [c.name, { x: c.x, y: c.y }]));
+const noOverlap = (l: DiagramGeometry) => {
   for (const a of l.classes)
     for (const b of l.classes)
       if (a.name < b.name)
@@ -119,16 +119,16 @@ ${bends}`;
     expect(dep.points.length).toBeGreaterThanOrEqual(2);
   });
 
-  it("parsePins drops malformed and orphaned entries", () => {
+  it("parseFileLayout drops malformed and orphaned entries", () => {
     const { model } = parseModel(two(""));
-    const pins = parsePins(
+    const fileLayout = parseFileLayout(
       { classes: { Родитель: { x: 1.4, y: 2 }, Нет: { x: 0, y: 0 }, Сосед: { x: "a" } }, relations: { "x": { bends: [[1, 1]] } } },
       model,
     );
-    expect(pins).toEqual({ classes: { Родитель: { x: 1, y: 2 } }, relations: {} });
+    expect(fileLayout).toEqual({ classes: { Родитель: { x: 1, y: 2 } }, relations: {} });
   });
 
-  it("layoutDiagram without pins equals the pure automatic layout", async () => {
+  it("layoutDiagram without fileLayout equals the pure automatic layout", async () => {
     const { model } = parseModel(kolobok);
     expect(await layoutDiagram(model, { classes: {}, relations: {} })).toEqual(await layoutDiagram(model));
   });
@@ -136,8 +136,8 @@ ${bends}`;
 
 describe("pinned layout invariants", () => {
   const sets: Record<string, string> = {
-    "3 pins": PINNED,
-    "5 pins": `  classes:
+    "3 fileLayout": PINNED,
+    "5 fileLayout": `  classes:
     Колобок: { x: 100, y: 900 }
     Лиса: { x: 900, y: 100 }
     Старуха: { x: 500, y: 500 }

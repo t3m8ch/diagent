@@ -14,14 +14,14 @@ describe("History", () => {
   });
 
   it("inverseOf restores the previous pin or unpins", () => {
-    const pins = { classes: { A: { x: 10, y: 20 } }, relations: {} };
+    const fileLayout = { classes: { A: { x: 10, y: 20 } }, relations: {} };
     const inv = inverseOf(
       [
         { type: "pinClass", name: "A", x: 50, y: 50 },
         { type: "pinClass", name: "B", x: 0, y: 0 },
         { type: "setBends", key: "k", bends: [[1, 1]] },
       ],
-      pins,
+      fileLayout,
     );
     expect(inv).toEqual([
       { type: "setBends", key: "k", bends: null },
