@@ -1,11 +1,12 @@
 ---
 id: da-7-ED2
-status: open
+status: in_progress
 deps: [da-6]
 links: []
 created: 2026-10-29T07:06:00Z
 type: feature
 priority: 3
+assignee: t3m8ch
 aliases: [5z9ak]
 parent: da-1
 tags: [ready-for-agent]
