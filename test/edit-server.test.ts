@@ -35,7 +35,9 @@ describe("diagent edit server", () => {
     const { url } = await open(model);
     const page = await fetch(url);
     expect(page.status).toBe(200);
-    expect(await page.text()).toContain("/client.js");
+    const html = await page.text();
+    expect(html).toContain("/client.js");
+    expect(html).toContain("Drag to pin · double-click to unpin");
     const js = await fetch(url + "client.js");
     expect(js.status).toBe(200);
     expect((await js.text()).length).toBeGreaterThan(1000);

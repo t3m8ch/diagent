@@ -50,7 +50,7 @@ svg { display: block; }
 </style>
 </head>
 <body>
-<div id="bar"><b>diagent</b><span id="file"></span><span class="hint">drag a class to pin it · double-click to unpin · click a line to select it, click it again (or drag) to add a bend, drag a bend to move it, double-click a bend to remove it · Ctrl+Z / Ctrl+Shift+Z</span><button id="reset-bends" disabled>Reset bends</button><button id="pin-all">Pin all</button><button id="unpin-all">Unpin all</button><span id="status"></span></div>
+<div id="bar"><b>diagent</b><span id="file"></span><span class="hint" title="Click a line to select it, click it again (or drag) to add a bend, drag a bend to move it, double-click a bend to remove it. Ctrl+Z / Ctrl+Shift+Z: undo / redo.">Drag to pin · double-click to unpin · click a line to add bends</span><button id="reset-bends" disabled>Reset bends</button><button id="pin-all">Pin all</button><button id="unpin-all">Unpin all</button><span id="status"></span></div>
 <pre id="errors"></pre>
 <div id="stage"></div>
 <script src="/client.js"></script>
