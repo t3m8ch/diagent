@@ -1,6 +1,6 @@
 ---
 id: da-5-AGT1
-status: in_progress
+status: closed
 deps: [da-3]
 links: []
 created: 2026-10-29T07:06:00Z
@@ -10,6 +10,8 @@ assignee: t3m8ch
 aliases: [pfj0m]
 parent: da-1
 tags: [ready-for-agent]
+closed: 2026-10-29T08:36:58Z
+close-reason: completed
 ---
 # SKILL.md для агента: как писать диаграммы diagent
 
