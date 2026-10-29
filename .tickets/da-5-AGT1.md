@@ -1,11 +1,12 @@
 ---
 id: da-5-AGT1
-status: open
+status: in_progress
 deps: [da-3]
 links: []
 created: 2026-10-29T07:06:00Z
 type: task
 priority: 2
+assignee: t3m8ch
 aliases: [pfj0m]
 parent: da-1
 tags: [ready-for-agent]
