@@ -1,0 +1,293 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1243" height="2426" viewBox="0 0 1243 2426" font-family="DejaVu Sans Mono, monospace" font-size="13" fill="#ffffff">
+<rect width="1243" height="2426" fill="#000000"/>
+<g>
+<polyline points="814,104 814,150 534,150 534,174" fill="none" stroke="#ffffff" stroke-width="1.5"/>
+<polygon points="814,92 820,104 808,104" fill="#000000" stroke="#ffffff" stroke-width="1.5"/>
+</g>
+<g>
+<polyline points="512,216 512,248 396,248 396,284" fill="none" stroke="#ffffff" stroke-width="1.5"/>
+<polygon points="512,204 518,216 506,216" fill="#000000" stroke="#ffffff" stroke-width="1.5"/>
+</g>
+<g>
+<polyline points="534,216 534,546" fill="none" stroke="#ffffff" stroke-width="1.5"/>
+<polygon points="534,204 540,216 528,216" fill="#000000" stroke="#ffffff" stroke-width="1.5"/>
+</g>
+<g>
+<polyline points="838,104 838,916" fill="none" stroke="#ffffff" stroke-width="1.5"/>
+<polygon points="838,92 844,104 832,104" fill="#000000" stroke="#ffffff" stroke-width="1.5"/>
+</g>
+<g>
+<polyline points="789,104 789,136 20,136 20,2004 620,2004 620,2062" fill="none" stroke="#ffffff" stroke-width="1.5"/>
+<polygon points="789,92 795,104 783,104" fill="#000000" stroke="#ffffff" stroke-width="1.5"/>
+</g>
+<g>
+<polyline points="858,2196 858,2208 959,2208 959,2244" fill="none" stroke="#ffffff" stroke-width="1.5"/>
+<polygon points="858,2184 864,2196 852,2196" fill="#000000" stroke="#ffffff" stroke-width="1.5"/>
+</g>
+<g>
+<polyline points="779,2196 779,2208 829,2208 829,2244" fill="none" stroke="#ffffff" stroke-width="1.5"/>
+<polygon points="779,2184 785,2196 773,2196" fill="#000000" stroke="#ffffff" stroke-width="1.5"/>
+</g>
+<g>
+<polyline points="699,2196 699,2244" fill="none" stroke="#ffffff" stroke-width="1.5"/>
+<polygon points="699,2184 705,2196 693,2196" fill="#000000" stroke="#ffffff" stroke-width="1.5"/>
+</g>
+<g>
+<polyline points="620,2196 620,2208 416,2208 416,2244" fill="none" stroke="#ffffff" stroke-width="1.5"/>
+<polygon points="620,2184 626,2196 614,2196" fill="#000000" stroke="#ffffff" stroke-width="1.5"/>
+</g>
+<g>
+<polyline points="866,1198 866,1240 1012,1240 1012,1326" fill="none" stroke="#ffffff" stroke-width="1.5"/>
+<polygon points="866,1182 871,1190 866,1198 861,1190" fill="#ffffff" stroke="#ffffff" stroke-width="1.5"/>
+<text x="873" y="1198" font-size="12">1</text>
+<text x="1019" y="1318" font-size="12">1</text>
+</g>
+<g>
+<polyline points="680,1198 680,1226 507,1226 507,1602 282,1602 282,1665" fill="none" stroke="#ffffff" stroke-width="1.5"/>
+<polygon points="680,1182 685,1190 680,1198 675,1190" fill="#000000" stroke="#ffffff" stroke-width="1.5"/>
+<text x="687" y="1198" font-size="12">0..1</text>
+<text x="456" y="1439" font-size="12">состав</text>
+<text x="289" y="1657" font-size="12">1..*</text>
+</g>
+<g>
+<polyline points="595,740 595,860 708,860 708,916" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-dasharray="7 5"/>
+<polyline points="703,906 708,916 713,906" fill="none" stroke="#ffffff" stroke-width="1.5"/>
+<text x="529" y="832" font-size="12">«create»</text>
+</g>
+<g>
+<polyline points="779,2062 779,2004 867,2004 867,1268 792,1268 792,1182" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-dasharray="7 5"/>
+<polyline points="797,1192 792,1182 787,1192" fill="none" stroke="#ffffff" stroke-width="1.5"/>
+<text x="823" y="1718" font-size="12">«use»</text>
+</g>
+<g>
+<polyline points="829,1182 829,1254 882,1254 882,2018 858,2018 858,2062" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-dasharray="7 5"/>
+<polyline points="853,2052 858,2062 863,2052" fill="none" stroke="#ffffff" stroke-width="1.5"/>
+<text x="889" y="1718" font-size="12">«use»</text>
+</g>
+<g>
+<polyline points="396,370 396,490 384,490 384,546" fill="none" stroke="#ffffff" stroke-width="1.5"/>
+<polyline points="379,536 384,546 389,536" fill="none" stroke="#ffffff" stroke-width="1.5"/>
+<text x="403" y="386" font-size="12">1</text>
+<text x="277" y="462" font-size="12">просит испечь ▼</text>
+<text x="391" y="538" font-size="12">1</text>
+</g>
+<g>
+<polyline points="323,740 323,784 188,784 188,997" fill="none" stroke="#ffffff" stroke-width="1.5"/>
+<polyline points="183,987 188,997 193,987" fill="none" stroke="#ffffff" stroke-width="1.5"/>
+<text x="330" y="756" font-size="12">1</text>
+<text x="47" y="832" font-size="12">собирает муку из ▼</text>
+<text x="195" y="989" font-size="12">1..*</text>
+</g>
+<g>
+<polyline points="414,740 414,1588 235,1588 235,1665" fill="none" stroke="#ffffff" stroke-width="1.5"/>
+<polyline points="230,1655 235,1665 240,1655" fill="none" stroke="#ffffff" stroke-width="1.5"/>
+<text x="421" y="756" font-size="12">0..1</text>
+<text x="348" y="1053" font-size="12">хранит ▼</text>
+<text x="242" y="1657" font-size="12">2</text>
+</g>
+<g>
+<polyline points="504,740 504,784 429,784 429,1616 672,1616 672,1660" fill="none" stroke="#ffffff" stroke-width="1.5"/>
+<polyline points="667,1650 672,1660 677,1650" fill="none" stroke="#ffffff" stroke-width="1.5"/>
+<text x="511" y="756" font-size="12">0..1</text>
+<text x="436" y="1053" font-size="12">кладёт остужаться на ▼</text>
+<text x="679" y="1652" font-size="12">1</text>
+</g>
+<g>
+<polyline points="773,916 773,248 557,248 557,204" fill="none" stroke="#ffffff" stroke-width="1.5"/>
+<polyline points="562,214 557,204 552,214" fill="none" stroke="#ffffff" stroke-width="1.5"/>
+<text x="780" y="908" font-size="12">*</text>
+<text x="699" y="462" font-size="12">▲ живёт у</text>
+<text x="564" y="220" font-size="12">1..*</text>
+</g>
+<g>
+<polyline points="1118,1326 1118,1226 954,1226 954,136 863,136 863,92" fill="none" stroke="#ffffff" stroke-width="1.5"/>
+<polyline points="868,102 863,92 858,102" fill="none" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1125" y="1318" font-size="12">*</text>
+<text x="865" y="462" font-size="12">▲ упоминает</text>
+<text x="870" y="108" font-size="12">0..*</text>
+</g>
+<g>
+<polyline points="754,1182 754,1282 842,1282 842,1588 726,1588 726,1660" fill="none" stroke="#ffffff" stroke-width="1.5"/>
+<polyline points="721,1650 726,1660 731,1650" fill="none" stroke="#ffffff" stroke-width="1.5"/>
+<text x="761" y="1198" font-size="12">*</text>
+<text x="738" y="1439" font-size="12">находится в ▼</text>
+<text x="733" y="1652" font-size="12">0..1</text>
+</g>
+<g>
+<polyline points="717,1182 717,1240 622,1240 622,1326" fill="none" stroke="#ffffff" stroke-width="1.5"/>
+<polyline points="617,1316 622,1326 627,1316" fill="none" stroke="#ffffff" stroke-width="1.5"/>
+<text x="724" y="1198" font-size="12">*</text>
+<text x="629" y="1318" font-size="12">1</text>
+</g>
+<g>
+<polyline points="188,1101 188,1665" fill="none" stroke="#ffffff" stroke-width="1.5"/>
+<polyline points="183,1655 188,1665 193,1655" fill="none" stroke="#ffffff" stroke-width="1.5"/>
+<text x="195" y="1117" font-size="12">0..1</text>
+<text x="107" y="1439" font-size="12">содержит ▼</text>
+<text x="195" y="1657" font-size="12">0..1</text>
+</g>
+<g>
+<polyline points="235,1755 235,1868" fill="none" stroke="#ffffff" stroke-width="1.5"/>
+<polyline points="230,1858 235,1868 240,1858" fill="none" stroke="#ffffff" stroke-width="1.5"/>
+<text x="242" y="1771" font-size="12">*</text>
+<text x="242" y="1860" font-size="12">1</text>
+</g>
+<g>
+<polyline points="617,1696 607,1696 607,1732 617,1732" fill="none" stroke="#ffffff" stroke-width="1.5"/>
+<text x="571" y="1702" font-size="12">0..1</text>
+<text x="534" y="1718" font-size="12">ведёт в ▶</text>
+<text x="571" y="1734" font-size="12">0..1</text>
+</g>
+<g>
+<polyline points="699,1768 699,2062" fill="none" stroke="#ffffff" stroke-width="1.5"/>
+<polyline points="694,2052 699,2062 704,2052" fill="none" stroke="#ffffff" stroke-width="1.5"/>
+<text x="706" y="1784" font-size="12">0..1</text>
+<text x="610" y="1918" font-size="12">встречный ▼</text>
+<text x="706" y="2054" font-size="12">0..1</text>
+</g>
+<g>
+<rect x="764" y="20" width="124" height="72" fill="#000000" stroke="#ffffff" stroke-width="1.5"/>
+<text x="826" y="39" text-anchor="middle" font-weight="bold" font-style="italic">Персонаж</text>
+<line x1="764" y1="50" x2="888" y2="50" stroke="#ffffff" stroke-width="1.5"/>
+<text x="774" y="68">+ имя: String</text>
+<line x1="764" y1="78" x2="888" y2="78" stroke="#ffffff" stroke-width="1.5"/>
+</g>
+<g>
+<rect x="489" y="174" width="90" height="30" fill="#000000" stroke="#ffffff" stroke-width="1.5"/>
+<text x="534" y="193" text-anchor="middle" font-weight="bold" font-style="italic">Человек</text>
+</g>
+<g>
+<rect x="282" y="284" width="228" height="86" fill="#000000" stroke="#ffffff" stroke-width="1.5"/>
+<text x="396" y="303" text-anchor="middle" font-weight="bold">Старик</text>
+<line x1="282" y1="314" x2="510" y2="314" stroke="#ffffff" stroke-width="1.5"/>
+<text x="292" y="332">+ старуха: Старуха</text>
+<line x1="282" y1="342" x2="510" y2="342" stroke="#ffffff" stroke-width="1.5"/>
+<text x="292" y="360">+ попроситьИспечьКолобок()</text>
+</g>
+<g>
+<rect x="233" y="546" width="452" height="194" fill="#000000" stroke="#ffffff" stroke-width="1.5"/>
+<text x="459" y="565" text-anchor="middle" font-weight="bold">Старуха</text>
+<line x1="233" y1="576" x2="685" y2="576" stroke="#ffffff" stroke-width="1.5"/>
+<text x="243" y="594">+ хранилища: List&lt;Хранилище&gt;</text>
+<text x="243" y="612">+ сметана: Ингредиент</text>
+<text x="243" y="630">+ масло: Ингредиент</text>
+<text x="243" y="648">+ окошко: Место</text>
+<line x1="233" y1="658" x2="685" y2="658" stroke="#ffffff" stroke-width="1.5"/>
+<text x="243" y="676">- замеситьТесто(колобок: Колобок, сметана: Ингредиент)</text>
+<text x="243" y="694">- изжарить(колобок: Колобок, масло: Ингредиент)</text>
+<text x="243" y="712">- положитьОстужаться(колобок: Колобок, окошко: Место)</text>
+<text x="243" y="730">+ испечьКолобок(старик: Старик)</text>
+</g>
+<g>
+<rect x="70" y="997" width="236" height="104" fill="#000000" stroke="#ffffff" stroke-width="1.5"/>
+<text x="188" y="1016" text-anchor="middle" font-weight="bold">Хранилище</text>
+<line x1="70" y1="1027" x2="306" y2="1027" stroke="#ffffff" stroke-width="1.5"/>
+<text x="80" y="1045">+ название: String</text>
+<text x="80" y="1063">+ мука: Ингредиент</text>
+<line x1="70" y1="1073" x2="306" y2="1073" stroke="#ffffff" stroke-width="1.5"/>
+<text x="80" y="1091">+ собратьМуку(): Ингредиент</text>
+</g>
+<g>
+<rect x="141" y="1665" width="188" height="90" fill="#000000" stroke="#ffffff" stroke-width="1.5"/>
+<text x="235" y="1684" text-anchor="middle" font-weight="bold">Ингредиент</text>
+<line x1="141" y1="1695" x2="329" y2="1695" stroke="#ffffff" stroke-width="1.5"/>
+<text x="151" y="1713">+ вид: ВидИнгредиента</text>
+<text x="151" y="1731">+ количество: Integer</text>
+<line x1="141" y1="1741" x2="329" y2="1741" stroke="#ffffff" stroke-width="1.5"/>
+</g>
+<g>
+<rect x="169" y="1868" width="132" height="112" fill="#000000" stroke="#ffffff" stroke-width="1.5"/>
+<text x="235" y="1887" text-anchor="middle">«enumeration»</text>
+<text x="235" y="1905" text-anchor="middle" font-weight="bold">ВидИнгредиента</text>
+<line x1="169" y1="1916" x2="301" y2="1916" stroke="#ffffff" stroke-width="1.5"/>
+<text x="179" y="1934">МУКА</text>
+<text x="179" y="1952">СМЕТАНА</text>
+<text x="179" y="1970">МАСЛО</text>
+</g>
+<g>
+<rect x="617" y="1660" width="164" height="108" fill="#000000" stroke="#ffffff" stroke-width="1.5"/>
+<text x="699" y="1679" text-anchor="middle" font-weight="bold">Место</text>
+<line x1="617" y1="1690" x2="781" y2="1690" stroke="#ffffff" stroke-width="1.5"/>
+<text x="627" y="1708">+ название: String</text>
+<text x="627" y="1726">+ следующее: Место</text>
+<text x="627" y="1744">+ встречный: Зверь</text>
+<line x1="617" y1="1754" x2="781" y2="1754" stroke="#ffffff" stroke-width="1.5"/>
+</g>
+<g>
+<rect x="643" y="916" width="260" height="266" fill="#000000" stroke="#ffffff" stroke-width="1.5"/>
+<text x="773" y="935" text-anchor="middle" font-weight="bold">Колобок</text>
+<line x1="643" y1="946" x2="903" y2="946" stroke="#ffffff" stroke-width="1.5"/>
+<text x="653" y="964">+ состав: List&lt;Ингредиент&gt;</text>
+<text x="653" y="982">+ хозяева: List&lt;Человек&gt;</text>
+<text x="653" y="1000">+ текущееМесто: Место</text>
+<text x="653" y="1018">+ состояние: СостояниеКолобка</text>
+<text x="653" y="1036">+ песня: Песня</text>
+<line x1="643" y1="1046" x2="903" y2="1046" stroke="#ffffff" stroke-width="1.5"/>
+<text x="653" y="1064">+ полежать()</text>
+<text x="653" y="1082">- убежать()</text>
+<text x="653" y="1100">+ покатиться()</text>
+<text x="653" y="1118">+ спетьПесню(слушатель: Зверь)</text>
+<text x="653" y="1136">- уйтиОт(персонаж: Персонаж)</text>
+<text x="653" y="1154">+ вскочитьНаМордочку()</text>
+<text x="653" y="1172">+ прыгнутьНаЯзык()</text>
+</g>
+<g>
+<rect x="548" y="1326" width="148" height="238" fill="#000000" stroke="#ffffff" stroke-width="1.5"/>
+<text x="622" y="1345" text-anchor="middle">«enumeration»</text>
+<text x="622" y="1363" text-anchor="middle" font-weight="bold">СостояниеКолобка</text>
+<line x1="548" y1="1374" x2="696" y2="1374" stroke="#ffffff" stroke-width="1.5"/>
+<text x="558" y="1392">МУКА</text>
+<text x="558" y="1410">ТЕСТО</text>
+<text x="558" y="1428">ЖАРИТСЯ</text>
+<text x="558" y="1446">ОСТЫВАЕТ</text>
+<text x="558" y="1464">КАТИТСЯ</text>
+<text x="558" y="1482">ВСТРЕТИЛ_ЗВЕРЯ</text>
+<text x="558" y="1500">ПОЁТ_ПЕСНЮ</text>
+<text x="558" y="1518">НА_МОРДОЧКЕ</text>
+<text x="558" y="1536">НА_ЯЗЫКЕ</text>
+<text x="558" y="1554">СЪЕДЕН</text>
+</g>
+<g>
+<rect x="907" y="1326" width="316" height="104" fill="#000000" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1065" y="1345" text-anchor="middle" font-weight="bold">Песня</text>
+<line x1="907" y1="1356" x2="1223" y2="1356" stroke="#ffffff" stroke-width="1.5"/>
+<text x="917" y="1374">+ упомянутые: List&lt;Персонаж&gt;</text>
+<line x1="907" y1="1384" x2="1223" y2="1384" stroke="#ffffff" stroke-width="1.5"/>
+<text x="917" y="1402">+ упомянуть(персонаж: Персонаж)</text>
+<text x="917" y="1420">+ исполнить(слушатель: Зверь): String</text>
+</g>
+<g>
+<rect x="541" y="2062" width="396" height="122" fill="#000000" stroke="#ffffff" stroke-width="1.5"/>
+<text x="739" y="2081" text-anchor="middle" font-weight="bold" font-style="italic">Зверь</text>
+<line x1="541" y1="2092" x2="937" y2="2092" stroke="#ffffff" stroke-width="1.5"/>
+<text x="551" y="2110">+ прозвище: String</text>
+<line x1="541" y1="2120" x2="937" y2="2120" stroke="#ffffff" stroke-width="1.5"/>
+<text x="551" y="2138">+ встретить(колобок: Колобок)</text>
+<text x="551" y="2156">- пригрозитьСъесть(колобок: Колобок)</text>
+<text x="551" y="2174">+ выслушатьПесню(текст: String, певец: Колобок)</text>
+</g>
+<g>
+<rect x="914" y="2244" width="90" height="30" fill="#000000" stroke="#ffffff" stroke-width="1.5"/>
+<text x="959" y="2263" text-anchor="middle" font-weight="bold">Заяц</text>
+</g>
+<g>
+<rect x="784" y="2244" width="90" height="30" fill="#000000" stroke="#ffffff" stroke-width="1.5"/>
+<text x="829" y="2263" text-anchor="middle" font-weight="bold">Волк</text>
+</g>
+<g>
+<rect x="654" y="2244" width="90" height="30" fill="#000000" stroke="#ffffff" stroke-width="1.5"/>
+<text x="699" y="2263" text-anchor="middle" font-weight="bold">Медведь</text>
+</g>
+<g>
+<rect x="218" y="2244" width="396" height="162" fill="#000000" stroke="#ffffff" stroke-width="1.5"/>
+<text x="416" y="2263" text-anchor="middle" font-weight="bold">Лиса</text>
+<line x1="218" y1="2274" x2="614" y2="2274" stroke="#ffffff" stroke-width="1.5"/>
+<line x1="218" y1="2288" x2="614" y2="2288" stroke="#ffffff" stroke-width="1.5"/>
+<text x="228" y="2306">+ встретить(колобок: Колобок)</text>
+<text x="228" y="2324">+ выслушатьПесню(текст: String, певец: Колобок)</text>
+<text x="228" y="2342">- похвалить(колобок: Колобок)</text>
+<text x="228" y="2360">- попроситьСпетьПогромче(колобок: Колобок)</text>
+<text x="228" y="2378">- попроситьСестьНаЯзычок(колобок: Колобок)</text>
+<text x="228" y="2396">- съесть(колобок: Колобок)</text>
+</g>
+</svg>

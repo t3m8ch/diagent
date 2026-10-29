@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="208" height="276" viewBox="0 0 208 276" font-family="DejaVu Sans Mono, monospace" font-size="13" fill="#000000">
+<rect width="208" height="276" fill="#ffffff"/>
+<g>
+<polyline points="141,50 141,226" fill="none" stroke="#000000" stroke-width="1.5"/>
+<polyline points="136,216 141,226 146,216" fill="none" stroke="#000000" stroke-width="1.5"/>
+<text x="148" y="66" font-size="12">муж 1</text>
+<text x="22" y="142" font-size="12">просит испечь ▼</text>
+<text x="148" y="218" font-size="12">1</text>
+</g>
+<g>
+<rect x="96" y="20" width="90" height="30" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
+<text x="141" y="39" text-anchor="middle" font-weight="bold">Старик</text>
+</g>
+<g>
+<rect x="96" y="226" width="90" height="30" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
+<text x="141" y="245" text-anchor="middle" font-weight="bold">Старуха</text>
+</g>
+</svg>

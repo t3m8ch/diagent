@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="153" height="236" viewBox="0 0 153 236" font-family="DejaVu Sans Mono, monospace" font-size="13" fill="#000000">
+<rect width="153" height="236" fill="#ffffff"/>
+<g>
+<polyline points="88,50 88,186" fill="none" stroke="#000000" stroke-width="1.5" stroke-dasharray="7 5"/>
+<polyline points="83,176 88,186 93,176" fill="none" stroke="#000000" stroke-width="1.5"/>
+<text x="22" y="122" font-size="12">«create»</text>
+</g>
+<g>
+<rect x="43" y="20" width="90" height="30" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
+<text x="88" y="39" text-anchor="middle" font-weight="bold">Старуха</text>
+</g>
+<g>
+<rect x="43" y="186" width="90" height="30" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
+<text x="88" y="205" text-anchor="middle" font-weight="bold">Колобок</text>
+</g>
+</svg>
