@@ -1,0 +1,10 @@
+needs-info , Waiting on reporter for more information
+needs-triage , Maintainer needs to evaluate this issue
+ready-for-agent , Fully specified, ready for an AFK agent
+ready-for-human , Requires human implementation
+wayfinder:grilling , Wayfinder HITL conversation decision ticket
+wayfinder:map , Canonical Wayfinder map
+wayfinder:prototype , Wayfinder HITL prototype decision ticket
+wayfinder:research , Wayfinder AFK research decision ticket
+wayfinder:task , Wayfinder prerequisite task ticket
+wontfix , Will not be actioned

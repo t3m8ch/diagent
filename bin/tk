@@ -1,0 +1,1190 @@
+#!/usr/bin/env python3
+"""tk: tickets as Markdown files with frontmatter in `.tickets/`.
+
+The file format is that of wedow/ticket (bash `tk`), so both tools read the
+same files. Needs only the Python 3.9+ standard library.
+"""
+from __future__ import annotations
+
+import argparse
+import contextlib
+import json
+import os
+import re
+import secrets
+import subprocess
+import sys
+from collections import Counter, defaultdict
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Iterator, Optional
+from urllib.parse import unquote
+
+try:
+    import fcntl
+except ImportError:  # Windows has no fcntl; run without the lock there.
+    fcntl = None
+
+KEY_ORDER = (
+    "id", "status", "deps", "links", "created", "type", "priority",
+    "assignee", "external-ref", "aliases", "parent", "tags", "closed", "close-reason",
+)
+LIST_KEYS = frozenset({"deps", "links", "tags", "aliases"})
+STATUSES = ("open", "in_progress", "closed")
+ACTIVE = frozenset({"open", "in_progress"})
+TYPES = ("bug", "feature", "task", "epic", "chore")
+CLOSE_REASONS = ("completed", "not_planned", "duplicate")
+COMMENTS_HEADING = "## Comments"
+TIMESTAMP = re.compile(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ")
+KEY = re.compile(r"[a-z][a-z0-9-]*")
+# Frontmatter keys that bash tk's awk picks up anywhere it believes it is
+# inside frontmatter, which includes the span after a stray `---` body line.
+BASH_TK_KEYS = re.compile(r"(id|status|deps|links|parent|priority|assignee|tags|type): ")
+INLINE_CODE = re.compile(r"(`+).+?\1")
+LOCAL_LINK = re.compile(r"\]\((?!https?:|mailto:|#|/)([^)\s]+)\)|<img [^>]*src=\"(?!https?:|/)([^\"]+)\"")
+# An id is `<prefix>-<core>[-<slice code>]`. A new ticket gets 5 random
+# characters as its core, so creating one needs no network; `tk sync` gives it
+# the next number before anyone else sees it and keeps the random core in
+# `aliases`. Relations store `<prefix>-<core>`, so a slice code can be added or
+# changed by renaming one file. A slice code (ACC4, REV2.1, W0-1) may hold hyphens.
+CODE = re.compile(r"[A-Za-z][A-Za-z0-9]*(?:[.-][A-Za-z0-9]+)*")
+ID = re.compile(r"(?P<prefix>[a-z][a-z0-9]*)-(?P<core>\d+|[0-9a-z]{5})(?:-(?P<code>" + CODE.pattern + r"))?")
+ALPHABET = "0123456789abcdefghjkmnpqrstvwxyz"  # Crockford base32: no i, l, o, u
+# `external-ref: <source>-<key>` names the issue a ticket came from (gh-290,
+# sgu-17); .tickets/sources maps each source to its URL template.
+EXTERNAL = re.compile(r"(?P<source>[a-z][a-z0-9]*)-(?P<key>[A-Za-z0-9._-]+)")
+
+
+class TkError(Exception):
+    """A user-facing failure, printed without a traceback."""
+
+
+class FormatError(Exception):
+    def __init__(self, line: int, message: str):
+        super().__init__(message)
+        self.line = line
+
+
+@dataclass
+class Problem:
+    path: Path
+    line: int
+    message: str
+
+
+@dataclass
+class Ticket:
+    id: str
+    path: Path
+    meta: dict
+    body: str  # everything after the closing `---`, starting with `# <title>`
+    text: str  # the file as last read or written
+
+    @property
+    def ref(self) -> str:
+        """`<prefix>-<core>`, the part of the id that relations store."""
+        match = ID.fullmatch(self.id)
+        return f"{match['prefix']}-{match['core']}" if match else self.id
+
+    @property
+    def code(self) -> str:
+        match = ID.fullmatch(self.id)
+        return (match["code"] or "") if match else ""
+
+    @property
+    def title(self) -> str:
+        for line in self.body.split("\n"):
+            if line.startswith("# "):
+                return line[2:].strip()
+        return ""
+
+    @property
+    def status(self) -> str:
+        return self.meta.get("status", "open")
+
+    @property
+    def active(self) -> bool:
+        return self.status in ACTIVE
+
+    @property
+    def priority(self) -> int:
+        try:
+            return int(self.meta.get("priority", 2))
+        except ValueError:
+            return 2
+
+    @property
+    def assignee(self) -> str:
+        return self.meta.get("assignee", "")
+
+    @property
+    def parent(self) -> str:
+        return self.meta.get("parent", "")
+
+    def items(self, key: str) -> list:
+        value = self.meta.get(key)
+        return list(value) if isinstance(value, list) else []
+
+    def set_items(self, key: str, values: list) -> None:
+        self.meta[key] = list(dict.fromkeys(values))
+
+    def set(self, key: str, value: Optional[str]) -> None:
+        if value:
+            self.meta[key] = value
+        else:
+            self.meta.pop(key, None)
+
+
+def parse(text: str) -> tuple:
+    lines = text.split("\n")
+    if lines[0] != "---":
+        raise FormatError(1, "file must start with a `---` frontmatter line")
+    meta: dict = {}
+    for index in range(1, len(lines)):
+        line = lines[index]
+        if line == "---":
+            return meta, "\n".join(lines[index + 1:])
+        key, colon, value = line.partition(":")
+        if not colon or not KEY.fullmatch(key):
+            raise FormatError(index + 1, f"expected `key: value`, got {line!r}")
+        if key in meta:
+            raise FormatError(index + 1, f"duplicate key `{key}`")
+        value = value.strip()
+        if key in LIST_KEYS:
+            if not (value.startswith("[") and value.endswith("]")):
+                raise FormatError(index + 1, f"`{key}` must be a one-line list like `[a, b]`")
+            meta[key] = [item.strip() for item in value[1:-1].split(",") if item.strip()]
+        else:
+            meta[key] = value
+    raise FormatError(len(lines), "frontmatter is not closed with `---`")
+
+
+def render(meta: dict, body: str) -> str:
+    rank = {key: index for index, key in enumerate(KEY_ORDER)}
+    keys = sorted(meta, key=lambda key: rank.get(key, len(rank)))
+    lines = ["---"]
+    for key in keys:
+        value = meta[key]
+        if isinstance(value, list):
+            value = "[" + ", ".join(value) + "]"
+        lines.append(f"{key}: {value}")
+    lines.append("---")
+    return "\n".join(lines) + "\n" + body
+
+
+def now() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def names(ticket_id: str) -> set:
+    """Every lowercase name a ticket answers to: the id, `<prefix>-<core>`, the core, the code and `<core>-<code>`."""
+    found = {ticket_id.lower()}
+    match = ID.fullmatch(ticket_id)
+    if match:
+        core, code = match["core"], match["code"]
+        found |= {f"{match['prefix']}-{core}", core}
+        if code:
+            found |= {code.lower(), f"{core}-{code}".lower()}
+    return found
+
+
+def number_of(ticket_id: str) -> int:
+    match = ID.fullmatch(ticket_id)
+    return int(match["core"]) if match and match["core"].isdigit() else sys.maxsize
+
+
+def order(t: Ticket) -> tuple:
+    return (t.meta.get("created", ""), number_of(t.id), t.id)
+
+
+def find_root() -> Path:
+    env = os.environ.get("TICKETS_DIR")
+    if env:
+        root = Path(env)
+        if not root.is_dir():
+            raise TkError(f"TICKETS_DIR={env} is not a directory")
+        return root
+    for directory in [Path.cwd(), *Path.cwd().parents]:
+        if (directory / ".tickets").is_dir():
+            return directory / ".tickets"
+    beside = Path(__file__).resolve().parent.parent / ".tickets"
+    if beside.is_dir():
+        return beside
+    raise TkError("no .tickets directory found here, above, or beside tk; set TICKETS_DIR")
+
+
+def git(root: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        ["git", *args], cwd=root, check=check, text=True,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    )
+
+
+def in_git(root: Path) -> bool:
+    try:
+        return git(root, "rev-parse", "--is-inside-work-tree", check=False).returncode == 0
+    except FileNotFoundError:
+        return False
+
+
+def author(root: Path) -> str:
+    name = os.environ.get("TICKET_AUTHOR")
+    if name:
+        return name
+    with contextlib.suppress(FileNotFoundError):
+        name = git(root, "config", "tk.author", check=False).stdout.strip()
+        name = name or git(root, "config", "user.name", check=False).stdout.strip()
+    return name or os.environ.get("USER", "unknown")
+
+
+@contextlib.contextmanager
+def locked(root: Path) -> Iterator[None]:
+    if fcntl is None:
+        yield
+        return
+    with open(root / ".lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        yield
+
+
+class Store:
+    def __init__(self, root: Path):
+        self.root = root
+        self.tickets: dict = {}
+        self.broken: list = []
+        self.changed: dict = {}
+        self.removed: set = set()
+        self.extra: set = set()  # other paths under root to commit with the tickets, like attachment folders
+        for path in sorted(root.glob("*.md")):
+            text = path.read_text(encoding="utf-8")
+            try:
+                meta, body = parse(text)
+            except FormatError as error:
+                self.broken.append(Problem(path, error.line, str(error)))
+                continue
+            self.tickets[path.stem] = Ticket(path.stem, path, meta, body, text)
+        self.by_ref: dict = {}
+        for t in self.tickets.values():
+            self.by_ref.setdefault(t.ref, t)
+
+    @property
+    def prefix(self) -> str:
+        env = os.environ.get("TICKET_PREFIX")
+        if env:
+            return env
+        stems = [path.stem for path in self.root.glob("*.md")]
+        prefixes = Counter(m["prefix"] for m in map(ID.fullmatch, stems) if m)
+        if not prefixes:
+            fallback = self.root / "prefix"
+            if fallback.is_file() and fallback.read_text(encoding="utf-8").strip():
+                return fallback.read_text(encoding="utf-8").strip()
+            raise TkError("no tickets to take the id prefix from; set TICKET_PREFIX or write it to .tickets/prefix")
+        return prefixes.most_common(1)[0][0]
+
+    def get(self, ref: str) -> Ticket:
+        """The ticket whose id, `<prefix>-<core>`, core, slice code, `<core>-<code>`, alias or external ref
+        is `ref`, in any case."""
+        ref = ref.strip().lstrip("#")
+        if ref.isdigit():
+            ref = str(int(ref))
+        if ref in self.tickets:
+            return self.tickets[ref]
+        wanted = ref.lower()
+        found = [t for t in self.tickets.values() if wanted in self.names(t)]
+        if len(found) > 1:
+            raise TkError(f"{ref!r} matches several tickets: {', '.join(sorted(t.id for t in found))}")
+        if found:
+            return found[0]
+        if any(wanted in names(problem.path.stem) for problem in self.broken):
+            raise TkError(f"ticket {ref} cannot be parsed; run `tk check`")
+        raise TkError(f"ticket {ref!r} not found")
+
+    def find(self, ticket_id: str) -> Optional[Ticket]:
+        """The ticket a relation names, by `<prefix>-<core>` or by full id."""
+        return self.by_ref.get(ticket_id) or self.tickets.get(ticket_id)
+
+    def names(self, t: Ticket) -> set:
+        found = names(t.id)
+        if t.meta.get("external-ref"):
+            found.add(t.meta["external-ref"].lower())
+        for alias in t.items("aliases"):
+            found |= {alias.lower(), f"{self.prefix}-{alias}".lower()}
+        return found
+
+    def sources(self) -> Optional[dict]:
+        """Source -> URL template with `{n}`, in file order, or None without .tickets/sources."""
+        if not hasattr(self, "_sources"):
+            path = self.root / "sources"
+            self._sources = None
+            if path.exists():
+                pairs = (line.split(",", 1) for line in path.read_text(encoding="utf-8").split("\n") if line.strip())
+                self._sources = {pair[0].strip(): (pair[1].strip() if len(pair) > 1 else "") for pair in pairs}
+        return self._sources
+
+    def url(self, t: Ticket) -> str:
+        external = EXTERNAL.fullmatch(t.meta.get("external-ref", ""))
+        template = (self.sources() or {}).get(external["source"], "") if external else ""
+        return template.replace("{n}", external["key"]) if template else ""
+
+    def label(self, ticket_id: str) -> str:
+        t = self.find(ticket_id)
+        return t.id if t else ticket_id
+
+    def next_id(self, code: str = "") -> str:
+        taken = {name for t in self.tickets.values() for name in names(t.id)}
+        while True:
+            core = "".join(secrets.choice(ALPHABET) for _ in range(5))
+            # A digit and a letter keep it apart from issue numbers and from words.
+            if re.search(r"\d", core) and re.search("[a-z]", core) and core not in taken:
+                return f"{self.prefix}-{core}" + (f"-{code}" if code else "")
+
+    def sorted(self, tickets) -> list:
+        return sorted(tickets, key=lambda t: (t.priority, *order(t)))
+
+    def children(self, ticket: Ticket) -> list:
+        found = [t for t in self.tickets.values() if t.parent == ticket.ref]
+        return sorted(found, key=order)
+
+    def descendants(self, ticket: Ticket) -> list:
+        found, stack, seen = [], [ticket], {ticket.id}
+        while stack:
+            for child in self.children(stack.pop()):
+                if child.id not in seen:
+                    seen.add(child.id)
+                    found.append(child)
+                    stack.append(child)
+        return found
+
+    def blockers(self, ticket: Ticket) -> list:
+        """Full ids of the dependencies that are not closed."""
+        return [self.label(d) for d in ticket.items("deps") if not self.find(d) or self.find(d).status != "closed"]
+
+    def blocking(self, ticket: Ticket) -> list:
+        found = [t for t in self.tickets.values() if t.active and ticket.ref in t.items("deps")]
+        return sorted(found, key=order)
+
+    def known_tags(self) -> Optional[set]:
+        path = self.root / "tags"
+        if not path.exists():
+            return None
+        lines = path.read_text(encoding="utf-8").split("\n")
+        return {line.split(",")[0].strip() for line in lines if line.strip()}
+
+    def touch(self, ticket: Ticket) -> None:
+        self.changed[ticket.id] = ticket
+
+    def add(self, ticket: Ticket) -> None:
+        self.tickets[ticket.id] = ticket
+        self.by_ref.setdefault(ticket.ref, ticket)
+        self.touch(ticket)
+
+    def rename(self, ticket: Ticket, new_id: str) -> None:
+        del self.tickets[ticket.id]
+        if self.by_ref.get(ticket.ref) is ticket:
+            del self.by_ref[ticket.ref]
+        self.changed.pop(ticket.id, None)
+        self.removed.add(ticket.path)
+        ticket.id = ticket.meta["id"] = new_id
+        ticket.path = self.root / f"{new_id}.md"
+        self.add(ticket)
+
+    def flush(self, message: str) -> None:
+        """Validate the touched tickets, write them, and commit them to git."""
+        for ticket in self.changed.values():
+            ticket.text = render(ticket.meta, ticket.body)
+        paths = {ticket.path for ticket in self.changed.values()}
+        problems = [p for p in check(self) if p.path in paths]
+        if problems:
+            raise TkError("refusing to write invalid tickets:\n" + format_problems(self.root, problems))
+        for ticket in self.changed.values():
+            ticket.path.write_text(ticket.text, encoding="utf-8")
+        for path in self.removed:
+            path.unlink()
+        if os.environ.get("TK_AUTOCOMMIT", "1") != "0" and in_git(self.root):
+            names = sorted({path.name for path in paths | self.removed} | self.extra)
+            tracked = set(git(self.root, "ls-files", "--", *names).stdout.split("\n"))
+            # A path that is gone and was never committed has nothing to stage.
+            names = [n for n in names if (self.root / n).exists() or n in tracked or any(t.startswith(n + "/") for t in tracked)]
+            git(self.root, "add", "--", *names)
+            result = git(self.root, "commit", "-q", "-m", f"tk: {message}", "--", *names, check=False)
+            if result.returncode != 0:
+                print(f"tk: written but not committed: {result.stderr.strip()}", file=sys.stderr)
+
+
+def key_line(ticket: Ticket, key: str) -> int:
+    for index, line in enumerate(ticket.text.split("\n")[1:], start=2):
+        if line == "---":
+            break
+        if line.startswith(key + ":"):
+            return index
+    return 1
+
+
+def body_line(ticket: Ticket, index: int) -> int:
+    """1-based file line of the body line at `index`."""
+    return ticket.text.count("\n") - ticket.body.count("\n") + 1 + index
+
+
+def cycles(edges: dict) -> list:
+    """Every distinct cycle in a graph of id -> [ids], each rotated to start at its smallest id."""
+    found, state, path = {}, {}, []
+
+    def visit(node: str) -> None:
+        state[node] = "visiting"
+        path.append(node)
+        for target in edges.get(node, []):
+            if state.get(target) == "visiting":
+                cycle = path[path.index(target):]
+                start = cycle.index(min(cycle))
+                rotated = tuple(cycle[start:] + cycle[:start])
+                found[rotated] = list(rotated)
+            elif target in edges and target not in state:
+                visit(target)
+        path.pop()
+        state[node] = "done"
+
+    for node in sorted(edges):
+        if node not in state:
+            visit(node)
+    return list(found.values())
+
+
+def check(store: Store) -> list:
+    problems = list(store.broken)
+    tags = store.known_tags()
+    tickets = store.tickets
+    for t in tickets.values():
+        def bad(key: str, message: str, ticket: Ticket = t) -> None:
+            problems.append(Problem(ticket.path, key_line(ticket, key), message))
+
+        def relation(key: str, value: str, what: str) -> None:
+            if value in store.by_ref:
+                return
+            if value in tickets:
+                bad(key, f"write {what} {value} as {tickets[value].ref}: the slice code may change")
+            else:
+                bad(key, f"{what} {value} does not exist")
+
+        if t.meta.get("id") != t.id:
+            bad("id", f"`id` must equal the file name `{t.id}`")
+        if not ID.fullmatch(t.id):
+            bad("id", f"id {t.id} must look like mm-228, mm-k7q2x or mm-k7q2x-ACC4")
+        for key, value in t.meta.items():
+            if key not in KEY_ORDER:
+                bad(key, f"unknown key `{key}`")
+            for item in (value if isinstance(value, list) else [value]):
+                if ": " in item or "[" in item or "]" in item:
+                    bad(key, f"`{key}` value {item!r} must not contain `: `, `[` or `]`")
+        if t.status not in STATUSES:
+            bad("status", f"`status` must be one of {', '.join(STATUSES)}")
+        if "type" in t.meta and t.meta["type"] not in TYPES:
+            bad("type", f"`type` must be one of {', '.join(TYPES)}")
+        if not re.fullmatch(r"[0-4]", t.meta.get("priority", "2")):
+            bad("priority", "`priority` must be 0-4")
+        for key in ("created", "closed"):
+            if key in t.meta and not TIMESTAMP.fullmatch(t.meta[key]):
+                bad(key, f"`{key}` must look like 2026-10-24T12:00:00Z")
+        if "created" not in t.meta:
+            bad("id", "`created` is missing")
+        if t.status == "closed":
+            if t.meta.get("close-reason", "completed") not in CLOSE_REASONS:
+                bad("close-reason", f"`close-reason` must be one of {', '.join(CLOSE_REASONS)}")
+        else:
+            for key in ("closed", "close-reason"):
+                if key in t.meta:
+                    bad(key, f"`{key}` is only allowed on a closed ticket")
+        if t.parent:
+            relation("parent", t.parent, "parent")
+        if t.parent == t.ref:
+            bad("parent", "a ticket cannot be its own parent")
+        for dep in t.items("deps"):
+            relation("deps", dep, "dependency")
+            if dep == t.ref:
+                bad("deps", "a ticket cannot depend on itself")
+        for link in t.items("links"):
+            relation("links", link, "linked ticket")
+            if link in store.by_ref and t.ref not in store.by_ref[link].items("links"):
+                bad("links", f"link to {link} is one-sided; {link} must link back")
+        sources = store.sources()
+        if "external-ref" in t.meta and sources is not None:
+            external = EXTERNAL.fullmatch(t.meta["external-ref"])
+            if not external or external["source"] not in sources:
+                bad("external-ref", f"`external-ref` must be <source>-<key> with a source from .tickets/sources ({', '.join(sources)})")
+        for tag in t.items("tags"):
+            if tags is not None and tag not in tags:
+                bad("tags", f"tag `{tag}` is not described in .tickets/tags")
+
+        body = t.body.split("\n")
+        if not body[0].startswith("# ") or not body[0][2:].strip():
+            problems.append(Problem(t.path, body_line(t, 0), "the line after the frontmatter must be `# <title>`"))
+        inside = fenced = False
+        for index, line in enumerate(body):
+            if line == "---":
+                inside = not inside
+            elif inside and BASH_TK_KEYS.match(line):
+                problems.append(Problem(
+                    t.path, body_line(t, index),
+                    "bash tk reads this line as frontmatter because of the `---` above it",
+                ))
+            if line.startswith("```") or line.startswith("~~~"):
+                fenced = not fenced
+            if fenced:
+                continue
+            for match in LOCAL_LINK.finditer(INLINE_CODE.sub("", line)):
+                target = unquote((match.group(1) or match.group(2)).split("#")[0])
+                if target and not (store.root / target).exists():
+                    problems.append(Problem(t.path, body_line(t, index), f"attachment {target} does not exist"))
+
+    owners = defaultdict(list)
+    for t in tickets.values():
+        match = ID.fullmatch(t.id)
+        if match:
+            aliases = {alias.lower() for alias in t.items("aliases")}
+            for name in {match["core"], (match["code"] or "").lower(), t.meta.get("external-ref", "").lower(), *aliases} - {""}:
+                owners[name].append(t)
+    for name, found in sorted(owners.items()):
+        if len(found) > 1:
+            for t in found:
+                others = ", ".join(o.id for o in found if o is not t)
+                problems.append(Problem(t.path, key_line(t, "id"), f"`{name}` names {t.id} and {others} too"))
+
+    refs = store.by_ref
+    open_deps = {t.ref: [d for d in t.items("deps") if d != t.ref and d in refs and refs[d].active] for t in tickets.values() if t.active}
+    parents = {t.ref: [t.parent] for t in tickets.values() if t.parent in refs}
+    for kind, key, edges in (("dependency", "deps", open_deps), ("parent", "parent", parents)):
+        for cycle in cycles(edges):
+            for member in cycle:
+                bad_ticket = refs[member]
+                problems.append(Problem(
+                    bad_ticket.path, key_line(bad_ticket, key),
+                    f"{kind} cycle: {' -> '.join(cycle + cycle[:1])}",
+                ))
+    return problems
+
+
+def format_problems(root: Path, problems: list) -> str:
+    return "\n".join(f"{p.path.relative_to(root)}:{p.line}: {p.message}" for p in problems)
+
+
+def line(t: Ticket) -> str:
+    owner = f" @{t.assignee}" if t.assignee else ""
+    return f"{t.id:<8} [P{t.priority}][{t.status}] - {t.title}{owner}"
+
+
+def bullet(store: Store, ticket_id: str) -> str:
+    t = store.find(ticket_id)
+    if t is None:
+        return f"- {ticket_id} [missing]"
+    return f"- {t.id} [{t.status}] {t.title}"
+
+
+def relations(store: Store, t: Ticket) -> str:
+    sections = [
+        ("Parent", [t.parent] if t.parent else []),
+        ("Blockers", store.blockers(t)),
+        ("Blocking", [b.id for b in store.blocking(t)]),
+        ("Children", [c.id for c in store.children(t)]),
+        ("Linked", t.items("links")),
+    ]
+    out = []
+    for heading, ids in sections:
+        if ids:
+            out.append(f"\n## {heading}\n")
+            out.extend(bullet(store, i) for i in ids)
+    return "\n".join(out)
+
+
+def outline(t: Ticket) -> list:
+    """(file line, heading) for every heading of the body outside code fences."""
+    found, fenced = [], False
+    for index, text in enumerate(t.body.split("\n")):
+        if text.startswith("```") or text.startswith("~~~"):
+            fenced = not fenced
+        elif not fenced and re.match(r"#{1,6} ", text):
+            found.append((body_line(t, index), text))
+    return found
+
+
+def matches(t: Ticket, args) -> bool:
+    if args.assignee is not None and t.assignee != args.assignee:
+        return False
+    if getattr(args, "unassigned", False) and t.assignee:
+        return False
+    if args.tag and args.tag not in t.items("tags"):
+        return False
+    return True
+
+
+def scope(store: Store, args) -> list:
+    if getattr(args, "parent", None):
+        return store.descendants(store.get(args.parent))
+    return list(store.tickets.values())
+
+
+# Commands ------------------------------------------------------------------
+
+def valid_code(code: str) -> str:
+    if not CODE.fullmatch(code):
+        raise TkError(f"slice code {code!r} must start with a letter and hold letters, digits, `.` and `-`, like ACC4 or W0-1")
+    return code
+
+
+def cmd_create(store: Store, args) -> None:
+    description = sys.stdin.read() if args.stdin else (args.description or "")
+    ticket_id = store.next_id(valid_code(args.code) if args.code else "")
+    meta = {
+        "id": ticket_id, "status": "open", "deps": [], "links": [], "created": now(),
+        "type": args.type, "priority": str(args.priority),
+    }
+    if args.assignee:
+        meta["assignee"] = args.assignee
+    if args.external_ref:
+        meta["external-ref"] = args.external_ref
+    if args.parent:
+        meta["parent"] = store.get(args.parent).ref
+    if args.tags:
+        meta["tags"] = [tag.strip() for tag in args.tags.split(",") if tag.strip()]
+    if args.deps:
+        meta["deps"] = [store.get(dep).ref for dep in args.deps.split(",") if dep.strip()]
+    body = f"# {args.title}\n"
+    if description.strip():
+        body += "\n" + description.strip("\n") + "\n"
+    store.add(Ticket(ticket_id, store.root / f"{ticket_id}.md", meta, body, ""))
+    store.flush(f"create {ticket_id}")
+    print(ticket_id)
+
+
+def cmd_show(store: Store, args) -> None:
+    t = store.get(args.id)
+    if not args.meta:
+        print(t.text.rstrip("\n") + "\n" + relations(store, t))
+        return
+    frontmatter = t.text.split("\n---\n", 1)[0] + "\n---"
+    lines = t.text.count("\n") + (0 if t.text.endswith("\n") else 1)
+    url = store.url(t)
+    print(f"{frontmatter}\n# {t.title}\n\npath: {t.path}\nlines: {lines}" + (f"\nurl: {url}" if url else ""))
+    print(relations(store, t))
+    headings = outline(t)[1:]
+    if headings:
+        print("\n## Outline\n")
+        print("\n".join(f"{number:>5}  {text}" for number, text in headings))
+
+
+def cmd_list(store: Store, args) -> None:
+    statuses = set(args.status.split(",")) if args.status else (set(STATUSES) if args.all else ACTIVE)
+    for t in store.sorted(scope(store, args)):
+        if t.status in statuses and matches(t, args):
+            print(line(t))
+
+
+def cmd_ready(store: Store, args) -> None:
+    for t in store.sorted(scope(store, args)):
+        if t.active and not store.blockers(t) and matches(t, args):
+            print(line(t))
+
+
+def cmd_blocked(store: Store, args) -> None:
+    for t in store.sorted(scope(store, args)):
+        blockers = store.blockers(t)
+        if t.active and blockers and matches(t, args):
+            print(f"{line(t)} <- {', '.join(blockers)}")
+
+
+def cmd_closed(store: Store, args) -> None:
+    closed = [t for t in store.tickets.values() if t.status == "closed"]
+    closed.sort(key=lambda t: (t.meta.get("closed", ""), *order(t)), reverse=True)
+    for t in closed[: args.limit]:
+        reason = t.meta.get("close-reason", "completed")
+        print(f"{t.id:<8} {t.meta.get('closed', '?'):<20} {reason:<11} - {t.title}")
+
+
+def tree_lines(store: Store, t: Ticket, prefix: str, seen: set) -> Iterator[str]:
+    kids = store.children(t)
+    for index, child in enumerate(kids):
+        last = index == len(kids) - 1
+        blockers = store.blockers(child) if child.active else []
+        note = f"  <- {', '.join(blockers)}" if blockers else ""
+        owner = f" @{child.assignee}" if child.assignee else ""
+        yield f"{prefix}{'└── ' if last else '├── '}{child.id} [{child.status}] {child.title}{owner}{note}"
+        if child.id not in seen:
+            seen.add(child.id)
+            yield from tree_lines(store, child, prefix + ("    " if last else "│   "), seen)
+
+
+def cmd_tree(store: Store, args) -> None:
+    t = store.get(args.id)
+    print(f"{t.id} [{t.status}] {t.title}")
+    for text in tree_lines(store, t, "", {t.id}):
+        print(text)
+
+
+def cmd_dep(store: Store, args) -> None:
+    t = store.get(args.id)
+    added = [store.get(dep) for dep in args.deps]
+    t.set_items("deps", t.items("deps") + [a.ref for a in added])
+    store.touch(t)
+    store.flush(f"{t.id} depends on {', '.join(a.id for a in added)}")
+
+
+def cmd_undep(store: Store, args) -> None:
+    t = store.get(args.id)
+    removed = []
+    for dep in args.deps:
+        try:
+            removed.append(store.get(dep).ref)
+        except TkError:  # a dependency on a ticket that no longer exists
+            removed.append(dep)
+    t.set_items("deps", [d for d in t.items("deps") if d not in removed])
+    store.touch(t)
+    store.flush(f"{t.id} no longer depends on {', '.join(store.label(r) for r in removed)}")
+
+
+def dep_tree_lines(store: Store, ticket_id: str, prefix: str, seen: set, ancestors: frozenset, full: bool) -> Iterator[str]:
+    deps = store.find(ticket_id).items("deps")
+    for index, dep in enumerate(deps):
+        last = index == len(deps) - 1
+        branch = prefix + ("└── " if last else "├── ")
+        target = store.find(dep)
+        if target is None:
+            yield f"{branch}{dep} [missing]"
+            continue
+        dep = target.ref
+        label = f"{branch}{target.id} [{target.status}] {target.title}"
+        if dep in ancestors:
+            yield f"{label} (cycle)"
+        elif dep in seen and not full:
+            yield f"{label} (see above)"
+        else:
+            seen.add(dep)
+            yield label
+            yield from dep_tree_lines(store, dep, prefix + ("    " if last else "│   "), seen, ancestors | {dep}, full)
+
+
+def cmd_dep_tree(store: Store, args) -> None:
+    t = store.get(args.id)
+    print(f"{t.id} [{t.status}] {t.title}")
+    for text in dep_tree_lines(store, t.ref, "", {t.ref}, frozenset({t.ref}), args.full):
+        print(text)
+
+
+def cmd_dep_cycle(store: Store, args) -> None:
+    refs = store.by_ref
+    edges = {t.ref: [d for d in t.items("deps") if d in refs and refs[d].active] for t in store.tickets.values() if t.active}
+    found = cycles(edges)
+    for cycle in found:
+        print(" -> ".join(cycle + cycle[:1]))
+    if not found:
+        print("No dependency cycles found")
+
+
+def cmd_link(store: Store, args) -> None:
+    linked = [store.get(ref) for ref in args.ids]
+    if len(linked) < 2:
+        raise TkError("link needs at least two tickets")
+    for t in linked:
+        t.set_items("links", t.items("links") + [o.ref for o in linked if o is not t])
+        store.touch(t)
+    store.flush(f"link {', '.join(t.id for t in linked)}")
+
+
+def cmd_unlink(store: Store, args) -> None:
+    a, b = store.get(args.id), store.get(args.other)
+    a.set_items("links", [i for i in a.items("links") if i != b.ref])
+    b.set_items("links", [i for i in b.items("links") if i != a.ref])
+    store.touch(a)
+    store.touch(b)
+    store.flush(f"unlink {a.id}, {b.id}")
+
+
+def cmd_parent(store: Store, args) -> None:
+    t = store.get(args.id)
+    if args.none == bool(args.parent):
+        raise TkError("give either a parent or --none")
+    t.set("parent", None if args.none else store.get(args.parent).ref)
+    store.touch(t)
+    store.flush(f"{t.id} parent {store.label(t.parent) if t.parent else 'removed'}")
+
+
+def cmd_code(store: Store, args) -> None:
+    t = store.get(args.id)
+    if args.none == bool(args.code):
+        raise TkError("give either a slice code or --none")
+    old = t.id
+    new = t.ref + ("" if args.none else f"-{valid_code(args.code)}")
+    if new == old:
+        print(old)
+        return
+    store.rename(t, new)
+    store.flush(f"rename {old} to {new}")
+    print(new)
+
+
+def cmd_status(store: Store, args) -> None:
+    set_status(store, store.get(args.id), args.status)
+
+
+def cmd_start(store: Store, args) -> None:
+    set_status(store, store.get(args.id), "in_progress")
+
+
+def cmd_reopen(store: Store, args) -> None:
+    set_status(store, store.get(args.id), "open")
+
+
+def set_status(store: Store, t: Ticket, status: str) -> None:
+    if status == "closed":
+        close(store, t, "completed", force=False)
+        return
+    if status not in STATUSES:
+        raise TkError(f"status must be one of {', '.join(STATUSES)}")
+    t.meta["status"] = status
+    t.set("closed", None)
+    t.set("close-reason", None)
+    store.touch(t)
+    store.flush(f"{status} {t.id}")
+
+
+def close(store: Store, t: Ticket, reason: str, force: bool) -> None:
+    open_children = [c.id for c in store.descendants(t) if c.active]
+    if open_children and not force:
+        raise TkError(f"{t.id} has open children: {', '.join(open_children)} (use --force)")
+    t.meta["status"] = "closed"
+    t.meta["closed"] = now()
+    t.meta["close-reason"] = reason
+    store.touch(t)
+    store.flush(f"close {t.id} ({reason})")
+
+
+def cmd_close(store: Store, args) -> None:
+    close(store, store.get(args.id), args.reason, args.force)
+
+
+def cmd_assign(store: Store, args) -> None:
+    t = store.get(args.id)
+    t.set("assignee", args.name)
+    store.touch(t)
+    store.flush(f"assign {t.id} to {args.name}" if args.name else f"unassign {t.id}")
+
+
+def cmd_claim(store: Store, args) -> None:
+    t = store.get(args.id)
+    name = args.as_name or author(store.root)
+    if t.status == "closed":
+        raise TkError(f"{t.id} is closed")
+    if t.assignee and t.assignee != name:
+        raise TkError(f"{t.id} is already claimed by {t.assignee}")
+    t.meta["assignee"] = name
+    t.meta["status"] = "in_progress"
+    store.touch(t)
+    store.flush(f"{name} claims {t.id}")
+
+
+def cmd_tag(store: Store, args) -> None:
+    t = store.get(args.id)
+    t.set_items("tags", t.items("tags") + args.tags)
+    store.touch(t)
+    store.flush(f"tag {t.id} {', '.join(args.tags)}")
+
+
+def cmd_untag(store: Store, args) -> None:
+    t = store.get(args.id)
+    t.set_items("tags", [tag for tag in t.items("tags") if tag not in args.tags])
+    store.touch(t)
+    store.flush(f"untag {t.id} {', '.join(args.tags)}")
+
+
+def cmd_comment(store: Store, args) -> None:
+    t = store.get(args.id)
+    if args.text:
+        text = " ".join(args.text)
+    elif not sys.stdin.isatty():
+        text = sys.stdin.read()
+    else:
+        raise TkError("give the comment text as arguments or on stdin")
+    if not text.strip():
+        raise TkError("the comment is empty")
+    name = args.author or author(store.root)
+    body = t.body.rstrip("\n") + "\n"
+    if COMMENTS_HEADING not in body.split("\n"):
+        body += f"\n{COMMENTS_HEADING}\n"
+    t.body = body + f"\n### {now()} · {name}\n\n{text.strip()}\n"
+    store.touch(t)
+    store.flush(f"comment on {t.id}")
+    print(f"Comment added to {t.id}")
+
+
+def cmd_refs(store: Store, args) -> None:
+    t = store.get(args.id)
+    patterns = [r"(?<![\w-])" + re.escape(r) + r"(?![0-9a-z])" for r in [t.ref, *(f"{store.prefix}-{a}" for a in t.items("aliases"))]]
+    if t.code:
+        patterns.append(r"(?<![\w.-])" + re.escape(t.code) + r"(?!\w|[.-][A-Za-z0-9])")
+    hash_pattern = None
+    external = EXTERNAL.fullmatch(t.meta.get("external-ref", ""))
+    if external:
+        patterns.append(r"(?<![\w-])" + re.escape(external.group(0)) + r"(?!\w)")
+        url = store.url(t)
+        if url:
+            patterns.append(re.escape(url) + r"(?!\w)")
+        if external["source"] == "gh" and t.ref == f"{store.prefix}-{external['key']}":
+            hash_pattern = re.compile(rf"(?<![\w&/])#{external['key']}(?!\d)")  # the snapshot: #228 is mm-228
+    pattern = re.compile("|".join(patterns))
+    for other in sorted(store.tickets.values(), key=order):
+        if other is t:
+            continue
+        fenced = False
+        for index, text in enumerate(other.body.split("\n")):
+            if text.startswith("```") or text.startswith("~~~"):
+                fenced = not fenced
+            # #N in code is a line or attempt number in a quoted UI label, never a ticket
+            hashed = hash_pattern and not fenced and hash_pattern.search(INLINE_CODE.sub("", text))
+            if pattern.search(text) or hashed:
+                snippet = text.strip()
+                snippet = snippet if len(snippet) <= 140 else snippet[:137] + "..."
+                print(f"{other.id}:{body_line(other, index)}: {snippet}")
+
+
+def cmd_query(store: Store, args) -> None:
+    for t in sorted(store.tickets.values(), key=order):
+        record = dict(t.meta, title=t.title, path=str(t.path))
+        if args.body:
+            record["body"] = t.body
+        print(json.dumps(record, ensure_ascii=False))
+
+
+def cmd_check(store: Store, args) -> None:
+    problems = check(store)
+    if problems:
+        print(format_problems(store.root, problems))
+        sys.exit(1)
+    print(f"ok: {len(store.tickets)} tickets")
+
+
+def unsynced(store: Store) -> list:
+    """Tickets with a random core: nobody else has seen them under a number yet."""
+    return sorted((t for t in store.tickets.values() if ID.fullmatch(t.id) and not ID.fullmatch(t.id)["core"].isdigit()), key=order)
+
+
+def number(store: Store) -> list:
+    """Give every unsynced ticket the next number; rewrite relations and mentions; return (old, new) ids."""
+    added = git(store.root, "log", "--reverse", "--no-renames", "--diff-filter=A", "--name-only", "--format=", "--", ".").stdout.split()
+    first = {Path(name).stem: index for index, name in reversed(list(enumerate(added)))}
+    # `created` has whole seconds; within one second the order of the commits decides.
+    tickets = sorted(unsynced(store), key=lambda t: (t.meta.get("created", ""), first.get(t.id, len(first)), t.id))
+    used = [number_of(t.id) for t in store.tickets.values() if number_of(t.id) != sys.maxsize]
+    renamed = []
+    for n, t in enumerate(tickets, start=max(used, default=0) + 1):
+        old_id, old_ref, new_ref = t.id, t.ref, f"{store.prefix}-{n}"
+        mention = re.compile(r"(?<![\w-])" + re.escape(old_ref) + r"(?![0-9a-z])")
+        for other in store.tickets.values():
+            touched = False
+            for key in ("deps", "links"):
+                if old_ref in other.items(key):
+                    other.set_items(key, [new_ref if r == old_ref else r for r in other.items(key)])
+                    touched = True
+            if other.parent == old_ref:
+                other.meta["parent"] = new_ref
+                touched = True
+            if mention.search(other.body):
+                other.body = mention.sub(new_ref, other.body)
+                touched = True
+            if touched:
+                store.touch(other)
+        t.set_items("aliases", t.items("aliases") + [old_ref.split("-", 1)[1]])
+        folder = store.root / old_ref
+        if folder.is_dir():
+            folder.rename(store.root / new_ref)
+            store.extra |= {old_ref, new_ref}
+        store.rename(t, new_ref + (f"-{t.code}" if t.code else ""))
+        renamed.append((old_id, t.id))
+    if renamed:
+        store.flush("number " + ", ".join(f"{old} as {new}" for old, new in renamed))
+    return renamed
+
+
+def cmd_sync(store: Store, args) -> None:
+    """Pull, number the unsynced tickets, push; on a rejected push undo the numbering and start over."""
+    root = store.root
+    if not in_git(root):
+        raise TkError(f"{root} is not in a git work tree")
+    if os.environ.get("TK_AUTOCOMMIT", "1") == "0":
+        raise TkError("tk sync commits the numbering of new tickets; unset TK_AUTOCOMMIT")
+    for _ in range(5):
+        pull = git(root, "pull", "--rebase", "--autostash", check=False)
+        if pull.returncode != 0:
+            git(root, "rebase", "--abort", check=False)
+            sys.stderr.write(pull.stderr)
+            raise TkError("git pull --rebase failed; nothing was numbered or pushed")
+        store = Store(root)
+        renamed = number(store)
+        push = git(root, "push", check=False)
+        if push.returncode == 0:
+            for old, new in renamed:
+                print(f"{old} -> {new}")
+            return
+        if renamed:
+            git(root, "reset", "-q", "--keep", "HEAD~1")
+        if "rejected" not in push.stderr and "fetch first" not in push.stderr:
+            sys.stderr.write(push.stderr)
+            raise TkError("git push failed; the tickets stay unsynced")
+    raise TkError("others kept pushing while tk sync ran; run it again")
+
+
+# Command line ----------------------------------------------------------------
+
+WRITES = {
+    "create", "dep", "undep", "link", "unlink", "parent", "code", "status", "start", "close",
+    "reopen", "assign", "claim", "tag", "untag", "comment", "sync",
+}
+
+
+def add_filters(parser: argparse.ArgumentParser, unassigned: bool = True) -> None:
+    parser.add_argument("--parent", help="only descendants of this ticket")
+    parser.add_argument("-a", "--assignee", help="only tickets assigned to this name")
+    parser.add_argument("-T", "--tag", help="only tickets with this tag")
+    if unassigned:
+        parser.add_argument("-u", "--unassigned", action="store_true", help="only tickets without an assignee")
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="tk", description="Tickets as Markdown files in .tickets/ (wedow/ticket format).",
+        epilog="Ids are mm-<core>[-<slice code>]: mm-228-REV6.2 is also mm-228, 228, #228, REV6.2 or rev6.2. "
+               "A new ticket is mm-<5 random characters> until tk sync numbers it; the random part stays an alias. "
+               "Finds .tickets via $TICKETS_DIR, then the current directory and its parents, then beside tk.",
+    )
+    sub = parser.add_subparsers(dest="command", metavar="<command>")
+
+    def command(name: str, handler, help_text: str, aliases=()) -> argparse.ArgumentParser:
+        p = sub.add_parser(name, help=help_text, description=help_text, aliases=list(aliases))
+        p.set_defaults(handler=handler, command=name)
+        return p
+
+    p = command("create", cmd_create, "create a ticket and print its id")
+    p.add_argument("title")
+    p.add_argument("-d", "--description", help="body text")
+    p.add_argument("--stdin", action="store_true", help="read the body from stdin")
+    p.add_argument("-t", "--type", choices=TYPES, default="task")
+    p.add_argument("-p", "--priority", type=int, choices=range(5), default=2, help="0 is highest (default 2)")
+    p.add_argument("-a", "--assignee", help="assignee (default: none)")
+    p.add_argument("--parent", help="parent ticket")
+    p.add_argument("--tags", help="comma-separated tags")
+    p.add_argument("--deps", help="comma-separated tickets this one depends on")
+    p.add_argument("--external-ref", help="e.g. gh-123")
+    p.add_argument("-c", "--code", help="slice code to end the id with, e.g. ACC5")
+
+    p = command("show", cmd_show, "print a ticket with its parent, blockers, blocked and children")
+    p.add_argument("id")
+    p.add_argument("--meta", action="store_true", help="frontmatter, relations and a line-numbered outline, no body")
+
+    p = command("ls", cmd_list, "list open and in-progress tickets", aliases=("list",))
+    p.add_argument("--status", help="comma-separated statuses")
+    p.add_argument("--all", action="store_true", help="include closed tickets")
+    add_filters(p)
+
+    add_filters(command("ready", cmd_ready, "list active tickets whose dependencies are all closed"))
+    add_filters(command("blocked", cmd_blocked, "list active tickets with unclosed dependencies"))
+
+    p = command("closed", cmd_closed, "list recently closed tickets")
+    p.add_argument("--limit", type=int, default=20)
+
+    p = command("tree", cmd_tree, "print the children of a ticket as a tree")
+    p.add_argument("id")
+
+    p = command("dep", cmd_dep, "make a ticket depend on others (`dep tree <id>`, `dep cycle`)")
+    p.add_argument("id")
+    p.add_argument("deps", nargs="+")
+    p = command("undep", cmd_undep, "remove dependencies")
+    p.add_argument("id")
+    p.add_argument("deps", nargs="+")
+
+    p = command("link", cmd_link, "link tickets to each other")
+    p.add_argument("ids", nargs="+")
+    p = command("unlink", cmd_unlink, "remove a link between two tickets")
+    p.add_argument("id")
+    p.add_argument("other")
+
+    p = command("parent", cmd_parent, "set or remove the parent of a ticket")
+    p.add_argument("id")
+    p.add_argument("parent", nargs="?")
+    p.add_argument("--none", action="store_true")
+
+    p = command("code", cmd_code, "set or remove the slice code at the end of an id (renames the file)")
+    p.add_argument("id")
+    p.add_argument("code", nargs="?")
+    p.add_argument("--none", action="store_true")
+
+    p = command("status", cmd_status, "set the status of a ticket")
+    p.add_argument("id")
+    p.add_argument("status", choices=STATUSES)
+    command("start", cmd_start, "set status to in_progress").add_argument("id")
+    command("reopen", cmd_reopen, "set status to open").add_argument("id")
+    p = command("close", cmd_close, "close a ticket")
+    p.add_argument("id")
+    p.add_argument("-r", "--reason", choices=CLOSE_REASONS, default="completed")
+    p.add_argument("--force", action="store_true", help="close even with open children")
+
+    p = command("assign", cmd_assign, "set the assignee, or clear it without a name")
+    p.add_argument("id")
+    p.add_argument("name", nargs="?")
+    p = command("claim", cmd_claim, "assign to yourself and start, unless someone else holds it")
+    p.add_argument("id")
+    p.add_argument("--as", dest="as_name", help="claim as this name (default: $TICKET_AUTHOR, git tk.author or user.name)")
+
+    p = command("tag", cmd_tag, "add tags")
+    p.add_argument("id")
+    p.add_argument("tags", nargs="+")
+    p = command("untag", cmd_untag, "remove tags")
+    p.add_argument("id")
+    p.add_argument("tags", nargs="+")
+
+    p = command("comment", cmd_comment, "append a comment (text as arguments or on stdin)")
+    p.add_argument("id")
+    p.add_argument("text", nargs="*")
+    p.add_argument("--author", help="default: $TICKET_AUTHOR, git tk.author or user.name")
+
+    p = command("refs", cmd_refs, "find tickets whose text mentions a ticket")
+    p.add_argument("id")
+    p = command("query", cmd_query, "print every ticket as a JSON line (pipe into jq)")
+    p.add_argument("--body", action="store_true", help="include the body")
+    command("check", cmd_check, "validate every ticket; exit 1 on problems")
+    command("sync", cmd_sync, "pull, give new tickets their numbers, and push")
+    command("help", None, "show this help")
+    return parser
+
+
+def dep_subcommand(argv: list) -> Optional[argparse.Namespace]:
+    """`dep tree [--full] <id>` and `dep cycle` share the `dep` name with `dep <id> <deps>`."""
+    if argv[:2] == ["dep", "cycle"] and len(argv) == 2:
+        return argparse.Namespace(command="dep", handler=cmd_dep_cycle)
+    if argv[:2] == ["dep", "tree"]:
+        p = argparse.ArgumentParser(prog="tk dep tree")
+        p.add_argument("--full", action="store_true", help="repeat subtrees that were already shown")
+        p.add_argument("id")
+        return p.parse_args(argv[2:], argparse.Namespace(command="dep", handler=cmd_dep_tree))
+    return None
+
+
+def main(argv: Optional[list] = None) -> None:
+    argv = sys.argv[1:] if argv is None else argv
+    parser = build_parser()
+    args = dep_subcommand(argv) or parser.parse_args(argv)
+    if args.command in (None, "help"):
+        parser.print_help()
+        return
+    try:
+        root = find_root()
+        if args.command in WRITES and args.handler not in (cmd_dep_tree, cmd_dep_cycle):
+            with locked(root):
+                args.handler(Store(root), args)
+        else:
+            args.handler(Store(root), args)
+    except TkError as error:
+        print(f"tk: {error}", file=sys.stderr)
+        sys.exit(1)
+    except BrokenPipeError:
+        sys.stderr.close()
+
+
+if __name__ == "__main__":
+    main()
