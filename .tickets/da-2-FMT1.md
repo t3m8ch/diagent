@@ -1,11 +1,12 @@
 ---
 id: da-2-FMT1
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-29T07:05:59Z
 type: feature
 priority: 1
+assignee: t3m8ch
 aliases: [j5tsk]
 parent: da-1
 tags: [ready-for-agent]
