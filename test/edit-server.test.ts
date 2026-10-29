@@ -97,4 +97,11 @@ describe("diagent edit server", () => {
     const r = await fetch(url + "api/actions", { method: "POST", body: "nope" });
     expect(r.status).toBe(400);
   });
+
+  it("rejects a body over 1 MB with 413 and keeps the server working", async () => {
+    const { url } = await open(model);
+    const r = await fetch(url + "api/actions", { method: "POST", body: "x".repeat(3_000_000) });
+    expect(r.status).toBe(413);
+    expect((await fetch(url + "api/file")).status).toBe(200);
+  });
 });

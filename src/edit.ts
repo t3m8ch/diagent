@@ -58,6 +58,8 @@ svg { display: block; }
 </html>
 `;
 
+class BodyTooLarge extends Error {}
+
 const here = dirname(fileURLToPath(import.meta.url));
 
 /** The browser bundle: `client.js` next to this module when built, otherwise bundled on the fly (tsx / vitest). */
@@ -152,13 +154,20 @@ export async function startEditor(opts: { file: string; port?: number; host?: st
   const json = (res: ServerResponse, status: number, value: unknown) =>
     send(res, status, "application/json; charset=utf-8", JSON.stringify(value));
 
+  const MAX_BODY = 1_000_000;
   const readBody = (req: IncomingMessage) =>
     new Promise<string>((resolve, reject) => {
       let s = "";
+      let size = 0;
       req.setEncoding("utf8");
-      req.on("data", (c) => {
-        s += c;
-        if (s.length > 1_000_000) reject(new Error("body too large"));
+      req.on("data", (c: string) => {
+        size += c.length;
+        if (size > MAX_BODY) {
+          s = ""; // stop accumulating; the rest of the upload is discarded
+          req.removeAllListeners("data");
+          req.resume();
+          reject(new BodyTooLarge());
+        } else s += c;
       });
       req.on("end", () => resolve(s));
       req.on("error", reject);
@@ -181,7 +190,11 @@ export async function startEditor(opts: { file: string; port?: number; host?: st
         let body: unknown;
         try {
           body = JSON.parse(await readBody(req));
-        } catch {
+        } catch (e) {
+          if (e instanceof BodyTooLarge) {
+            res.setHeader("connection", "close");
+            return json(res, 413, { error: "body too large" });
+          }
           return json(res, 400, { error: "invalid JSON" });
         }
         const actions = parseActions(body);
