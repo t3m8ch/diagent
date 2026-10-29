@@ -1,15 +1,10 @@
 /** Normalised diagram model (browser-safe: no Node imports). */
 import { parseDocument } from "yaml";
+import { KINDS, RELATION_KINDS, type RelationKind } from "./kinds.js";
 
 export type Visibility = "public" | "private" | "protected" | "package";
 export type ClassKind = "class" | "interface" | "enum";
-export type RelationKind =
-  | "generalization"
-  | "realization"
-  | "composition"
-  | "aggregation"
-  | "dependency"
-  | "association";
+export type { RelationKind };
 
 export interface Attribute {
   name: string;
@@ -65,22 +60,6 @@ export interface Model {
 
 type Obj = Record<string, any>;
 
-const KIND_FIELDS: Record<Exclude<RelationKind, "association">, [string, string]> = {
-  generalization: ["child", "parent"],
-  realization: ["implementor", "interface"],
-  composition: ["whole", "part"],
-  aggregation: ["whole", "part"],
-  dependency: ["client", "supplier"],
-};
-const KIND_ORDER: RelationKind[] = [
-  "generalization",
-  "realization",
-  "composition",
-  "aggregation",
-  "dependency",
-  "association",
-];
-
 /** Builds the model from already-validated data (the result of `check` without errors). */
 export function buildModel(data: Obj): Model {
   const classes: ClassModel[] = Object.entries((data.classes ?? {}) as Obj).map(([name, c]) => {
@@ -111,7 +90,7 @@ export function buildModel(data: Obj): Model {
 
   const relations: Relation[] = [];
   const rel = (data.relations ?? {}) as Obj;
-  for (const kind of KIND_ORDER) {
+  for (const kind of RELATION_KINDS) {
     for (const r of (rel[kind] ?? []) as Obj[]) {
       let ends: [RelationEnd, RelationEnd];
       let first: string;
@@ -126,16 +105,17 @@ export function buildModel(data: Obj): Model {
         first = ends[0].class;
         second = ends[1].class;
       } else {
-        const [a, b] = KIND_FIELDS[kind];
+        const info = KINDS[kind];
+        const [a, b] = info.fields!;
         first = r[a];
         second = r[b];
-        const multi = kind === "composition" || kind === "aggregation";
+        const multi = info.multiplicities === true;
         ends = [
           { class: first, multiplicity: multi ? r.whole_multiplicity : undefined, navigable: false },
           {
             class: second,
             multiplicity: multi ? r.part_multiplicity : undefined,
-            navigable: kind === "dependency",
+            navigable: info.secondEndNavigable === true,
           },
         ];
       }

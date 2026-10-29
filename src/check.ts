@@ -8,6 +8,7 @@ import {
   parseDocument,
   type Document,
 } from "yaml";
+import { KINDS, RELATION_KINDS } from "./kinds.js";
 import { schema } from "./schema.js";
 
 export interface Diagnostic {
@@ -38,15 +39,6 @@ export function formatPath(path: Segment[]): string {
   }
   return out;
 }
-
-const RELATION_ENDS: Record<string, [string, string]> = {
-  generalization: ["child", "parent"],
-  realization: ["implementor", "interface"],
-  composition: ["whole", "part"],
-  aggregation: ["whole", "part"],
-  dependency: ["client", "supplier"],
-};
-const RELATION_KINDS = [...Object.keys(RELATION_ENDS), "association"];
 
 /** Check the text of a diagram file; returns errors and warnings with positions. */
 export function check(text: string): Diagnostic[] {
@@ -242,11 +234,11 @@ function semanticChecks(data: Obj, add: Add, lineOf: (path: Segment[]) => number
         const ok = names.map((v, n) => checkRef([...base, "ends", n, "class"], v));
         if (ok[0] && ok[1]) ends = [names[0] as string, names[1] as string];
       } else {
-        const [a, b] = RELATION_ENDS[kind]!;
+        const [a, b] = KINDS[kind].fields!;
         const okA = checkRef([...base, a], rel[a]);
         const okB = checkRef([...base, b], rel[b]);
         if (okA && okB) ends = [rel[a] as string, rel[b] as string];
-        if (kind === "realization" && okB && kindOf(rel[b] as string) !== "interface")
+        if (KINDS[kind].secondEndIsInterface && okB && kindOf(rel[b] as string) !== "interface")
           add("error", [...base, b], `class "${String(rel[b])}" is not an interface (kind: ${kindOf(rel[b] as string)})`);
       }
 

@@ -1,5 +1,7 @@
 /** JSON Schema (draft-07) of a `*.cd.yaml` diagram. Printed by `diagent schema`. */
 
+import { KINDS, RELATION_KINDS, type RelationKind } from "./kinds.js";
+
 export const CLASS_NAME_PATTERN = "^\\p{L}[\\p{L}\\p{N}_]*$";
 
 const str = { type: "string" } as const;
@@ -91,36 +93,41 @@ const associationEnd = {
   },
 } as const;
 
+const associationProperties = {
+  name: str,
+  reading: {
+    enum: ["forward", "backward"],
+    description: "Direction of reading: forward = from ends[0] to ends[1].",
+  },
+  ends: { type: "array", minItems: 2, maxItems: 2, items: associationEnd },
+};
+
+/** Properties of one relation kind, built from the per-kind table. */
+function relationProperties(kind: RelationKind): { properties: Record<string, unknown>; required: string[] } {
+  const info = KINDS[kind];
+  if (!info.fields) return { properties: associationProperties, required: ["ends"] };
+  const [first, second] = info.fields;
+  const properties: Record<string, unknown> = {};
+  if (info.name) properties.name = str;
+  properties[first] = className;
+  properties[second] = className;
+  if (info.multiplicities) {
+    properties.whole_multiplicity = multiplicity;
+    properties.part_multiplicity = multiplicity;
+  }
+  if (info.stereotype) properties.stereotype = { ...str, description: 'E.g. "create", "use".' };
+  return { properties, required: [first, second] };
+}
+
 const relations = {
   type: "object",
   additionalProperties: false,
-  properties: {
-    generalization: relation({ child: className, parent: className }, ["child", "parent"]),
-    realization: relation({ implementor: className, interface: className }, ["implementor", "interface"]),
-    composition: relation(
-      { name: str, whole: className, part: className, whole_multiplicity: multiplicity, part_multiplicity: multiplicity },
-      ["whole", "part"],
-    ),
-    aggregation: relation(
-      { name: str, whole: className, part: className, whole_multiplicity: multiplicity, part_multiplicity: multiplicity },
-      ["whole", "part"],
-    ),
-    dependency: relation(
-      { client: className, supplier: className, stereotype: { ...str, description: 'E.g. "create", "use".' } },
-      ["client", "supplier"],
-    ),
-    association: relation(
-      {
-        name: str,
-        reading: {
-          enum: ["forward", "backward"],
-          description: "Direction of reading: forward = from ends[0] to ends[1].",
-        },
-        ends: { type: "array", minItems: 2, maxItems: 2, items: associationEnd },
-      },
-      ["ends"],
-    ),
-  },
+  properties: Object.fromEntries(
+    RELATION_KINDS.map((kind) => {
+      const { properties, required } = relationProperties(kind);
+      return [kind, relation(properties, required)];
+    }),
+  ),
 } as const;
 
 const layout = {

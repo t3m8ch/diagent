@@ -6,6 +6,7 @@
  */
 import ElkModule from "elkjs/lib/elk.bundled.js";
 import { rectsOverlap, routeAround, segHitsBox } from "./route.js";
+import { KINDS, type Marker } from "./kinds.js";
 import type { ClassModel, Model, Operation, Attribute, Relation, Visibility } from "./model.js";
 
 // ---- fixed text metrics -------------------------------------------------
@@ -52,7 +53,7 @@ export interface ClassBox {
   compartments: { y: number; height: number; items: TextItem[] }[];
 }
 
-export type Marker = "none" | "triangle" | "diamond" | "filled-diamond" | "arrow";
+export type { Marker };
 
 export interface RelationLabel {
   kind: "name" | "stereotype" | "source-end" | "target-end";
@@ -146,19 +147,7 @@ interface RelationSpec {
 }
 
 function markersFor(r: Relation): [Marker, Marker] {
-  switch (r.kind) {
-    case "generalization":
-    case "realization":
-      return ["none", "triangle"];
-    case "composition":
-      return ["filled-diamond", "none"];
-    case "aggregation":
-      return ["diamond", "none"];
-    case "dependency":
-      return ["none", "arrow"];
-    case "association":
-      return [r.ends[0].navigable ? "arrow" : "none", r.ends[1].navigable ? "arrow" : "none"];
-  }
+  return KINDS[r.kind].markers ?? [r.ends[0].navigable ? "arrow" : "none", r.ends[1].navigable ? "arrow" : "none"];
 }
 
 const endLabel = (e: Relation["ends"][0]) => [e.role, e.multiplicity].filter(Boolean).join(" ");
@@ -202,7 +191,7 @@ export async function layoutDiagram(model: Model, fileLayout?: FileLayout): Prom
 
   const specs: RelationSpec[] = model.relations.map((relation) => ({
     relation,
-    swap: relation.kind === "generalization" || relation.kind === "realization",
+    swap: KINDS[relation.kind].swap === true,
   }));
 
   const children = model.classes.map((c) => ({
@@ -262,7 +251,7 @@ export async function layoutDiagram(model: Model, fileLayout?: FileLayout): Prom
       if (part === "tail") kind = "source-end";
       else if (part === "head") kind = "target-end";
       else {
-        kind = r.kind === "dependency" ? "stereotype" : "name";
+        kind = KINDS[r.kind].stereotype ? "stereotype" : "name";
         if (r.kind === "association" && r.reading !== undefined) {
           const from = byName.get(r.ends[r.reading === 1 ? 0 : 1].class)!;
           const to = byName.get(r.ends[r.reading].class)!;
@@ -280,7 +269,7 @@ export async function layoutDiagram(model: Model, fileLayout?: FileLayout): Prom
       points,
       sourceMarker,
       targetMarker,
-      dashed: r.kind === "dependency" || r.kind === "realization",
+      dashed: KINDS[r.kind].dashed === true,
       labels,
       reversed: swap,
     };
@@ -295,7 +284,7 @@ export async function layoutDiagram(model: Model, fileLayout?: FileLayout): Prom
 const withGlyph = (name: string, g: string) => (g === "◀" || g === "▲" ? `${g} ${name}` : `${name} ${g}`);
 
 function centerText(r: Relation, g: string): string {
-  if (r.kind === "dependency") return r.stereotype ? `«${r.stereotype}»` : "";
+  if (KINDS[r.kind].stereotype) return r.stereotype ? `«${r.stereotype}»` : "";
   if (r.kind === "association" && r.reading !== undefined) return withGlyph(r.name!, g);
   return r.name ?? "";
 }
