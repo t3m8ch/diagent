@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { readFileSync, writeFileSync } from "node:fs";
-import { pathToFileURL } from "node:url";
+import { readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { check, type Diagnostic } from "./check.js";
 import { renderSvg, type Theme } from "./render.js";
 import { schema } from "./schema.js";
@@ -162,7 +162,8 @@ function formatText(file: string, ok: boolean, diagnostics: Diagnostic[]): strin
   return lines.join("\n") + "\n";
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+// Global installs and npx start the bin through a symlink, so compare real paths.
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   process.exitCode = await runCli(process.argv.slice(2), {
     stdout: (t) => process.stdout.write(t),
     stderr: (t) => process.stderr.write(t),

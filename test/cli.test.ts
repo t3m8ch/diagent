@@ -1,4 +1,7 @@
 import { spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { main } from "../src/cli.js";
 
@@ -71,6 +74,18 @@ describe("executable", () => {
     const r = spawnSync("pnpm", ["exec", "tsx", "src/cli.ts", "check", "examples/kolobok.cd.yaml"], {
       encoding: "utf8",
     });
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain("ok");
+  });
+
+  it("runs through a symlink, as global installs and npx call it", () => {
+    const dir = mkdtempSync(join(tmpdir(), "diagent-bin-"));
+    const link = join(dir, "diagent.ts");
+    symlinkSync(resolve("src/cli.ts"), link);
+    const r = spawnSync("pnpm", ["exec", "tsx", link, "check", "examples/kolobok.cd.yaml"], {
+      encoding: "utf8",
+    });
+    rmSync(dir, { recursive: true, force: true });
     expect(r.status).toBe(0);
     expect(r.stdout).toContain("ok");
   });
