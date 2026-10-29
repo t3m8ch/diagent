@@ -1,6 +1,6 @@
 ---
 id: da-6-ED1
-status: in_progress
+status: closed
 deps: [da-4]
 links: []
 created: 2026-10-29T07:06:00Z
@@ -10,6 +10,8 @@ assignee: t3m8ch
 aliases: [sx4sw]
 parent: da-1
 tags: [ready-for-agent]
+closed: 2026-10-29T08:36:58Z
+close-reason: completed
 ---
 # Редактор раскладки: перетаскивание и закрепление классов
 
