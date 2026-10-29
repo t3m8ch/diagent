@@ -66,4 +66,4 @@ export function wheelPixels(delta: number, deltaMode: number, page: number): num
 }
 
 /** Zoom factor of one wheel / pinch event with the given pixel delta (up = zoom in). */
-export const wheelZoomFactor = (deltaY: number) => Math.exp(-Math.max(-100, Math.min(100, deltaY)) * 0.0025);
+export const wheelZoomFactor = (deltaY: number) => Math.exp(-Math.max(-100, Math.min(100, deltaY)) * 0.0035);
