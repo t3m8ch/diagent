@@ -1,6 +1,6 @@
 ---
 id: da-3-LAY1
-status: in_progress
+status: closed
 deps: [da-2]
 links: []
 created: 2026-10-29T07:05:59Z
@@ -10,6 +10,8 @@ assignee: t3m8ch
 aliases: [4t17m]
 parent: da-1
 tags: [ready-for-agent]
+closed: 2026-10-29T08:36:58Z
+close-reason: completed
 ---
 # Автораскладка и render в SVG и PNG без учёта раскладки
 
