@@ -16,7 +16,9 @@ const USAGE = `Usage:
   diagent schema                  print the JSON Schema of a diagram
   diagent check [--json] <file>   validate a *.cd.yaml diagram
   diagent render <file> -o <out.svg|out.png> [--theme light|dark]
-                                  draw a diagram (the layout section is ignored for now)
+                                  draw a diagram (pinned classes and bends from the layout section are used)
+  diagent edit <file> [--port N] [--no-open]
+                                  open the layout editor in a browser (drag to pin, autosave)
 `;
 
 /** Runs the CLI and returns the process exit code. */
@@ -52,8 +54,56 @@ export function main(argv: string[], io: Io): number {
 
 /** Like `main`, but also runs the asynchronous commands (`render`). */
 export async function runCli(argv: string[], io: Io): Promise<number> {
-  if (argv[0] !== "render") return main(argv, io);
-  return render(argv.slice(1), io);
+  if (argv[0] === "render") return render(argv.slice(1), io);
+  if (argv[0] === "edit") return edit(argv.slice(1), io);
+  return main(argv, io);
+}
+
+async function edit(args: string[], io: Io): Promise<number> {
+  let port = 0;
+  let open = true;
+  const files: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]!;
+    if (a === "--no-open") open = false;
+    else if (a === "--port") port = Number(args[++i]);
+    else files.push(a);
+  }
+  if (files.length !== 1 || files[0]!.startsWith("-") || !Number.isInteger(port) || port < 0 || port > 65535) {
+    io.stderr(USAGE);
+    return 2;
+  }
+  const file = files[0]!;
+  let text: string;
+  try {
+    text = io.readFile(file);
+  } catch (e) {
+    io.stderr(`diagent: cannot read ${file}: ${(e as Error).message}\n`);
+    return 2;
+  }
+  // An invalid file still opens: the editor shows the errors and waits for a fix.
+  const diagnostics = check(text);
+  for (const d of diagnostics) io.stderr(`${file}:${d.line}:${d.column} ${d.severity}${d.path ? ` ${d.path}` : ""}: ${d.message}\n`);
+  const { startEditor } = await import("./edit.js");
+  const editor = await startEditor({ file, port });
+  io.stdout(`Editing ${file} at ${editor.url} (Ctrl+C to stop)\n`);
+  if (open) openBrowser(editor.url);
+  await new Promise<void>((resolve) => {
+    process.once("SIGINT", resolve);
+    process.once("SIGTERM", resolve);
+  });
+  await editor.close();
+  return 0;
+}
+
+function openBrowser(url: string): void {
+  const [cmd, args] =
+    process.platform === "darwin" ? ["open", [url]] : process.platform === "win32" ? ["cmd", ["/c", "start", "", url]] : ["xdg-open", [url]];
+  import("node:child_process").then(({ spawn }) => {
+    const child = spawn(cmd, args, { stdio: "ignore", detached: true });
+    child.on("error", () => {}); // no browser: the URL is printed anyway
+    child.unref();
+  });
 }
 
 async function render(args: string[], io: Io): Promise<number> {
