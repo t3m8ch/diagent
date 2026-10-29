@@ -31,18 +31,15 @@ export function main(argv: string[], io: Io): number {
   if (command === "check") {
     const json = rest.includes("--json");
     const files = rest.filter((a) => a !== "--json");
-    if (files.length !== 1 || files[0]!.startsWith("-")) {
+    const unknown = files.find((a) => a.startsWith("-"));
+    if (unknown) return unknownOption(unknown, io);
+    if (files.length !== 1) {
       io.stderr(USAGE);
       return 2;
     }
     const file = files[0]!;
-    let text: string;
-    try {
-      text = io.readFile(file);
-    } catch (e) {
-      io.stderr(`diagent: cannot read ${file}: ${(e as Error).message}\n`);
-      return 2;
-    }
+    const text = readSource(file, io);
+    if (text === undefined) return 2;
     const diagnostics = check(text);
     const ok = !diagnostics.some((d) => d.severity === "error");
     io.stdout(json ? formatJson(file, ok, diagnostics) : formatText(file, ok, diagnostics));
@@ -67,23 +64,18 @@ async function edit(args: string[], io: Io): Promise<number> {
     const a = args[i]!;
     if (a === "--no-open") open = false;
     else if (a === "--port") port = Number(args[++i]);
+    else if (a.startsWith("-")) return unknownOption(a, io);
     else files.push(a);
   }
-  if (files.length !== 1 || files[0]!.startsWith("-") || !Number.isInteger(port) || port < 0 || port > 65535) {
+  if (files.length !== 1 || !Number.isInteger(port) || port < 0 || port > 65535) {
     io.stderr(USAGE);
     return 2;
   }
   const file = files[0]!;
-  let text: string;
-  try {
-    text = io.readFile(file);
-  } catch (e) {
-    io.stderr(`diagent: cannot read ${file}: ${(e as Error).message}\n`);
-    return 2;
-  }
+  const text = readSource(file, io);
+  if (text === undefined) return 2;
   // An invalid file still opens: the editor shows the errors and waits for a fix.
-  const diagnostics = check(text);
-  for (const d of diagnostics) io.stderr(`${file}:${d.line}:${d.column} ${d.severity}${d.path ? ` ${d.path}` : ""}: ${d.message}\n`);
+  for (const d of check(text)) io.stderr(formatDiagnostic(file, d) + "\n");
   const { startEditor } = await import("./edit.js");
   const editor = await startEditor({ file, port });
   io.stdout(`Editing ${file} at ${editor.url} (Ctrl+C to stop)\n`);
@@ -114,29 +106,24 @@ async function render(args: string[], io: Io): Promise<number> {
     const a = args[i]!;
     if (a === "-o" || a === "--output") out = args[++i];
     else if (a === "--theme") theme = args[++i] ?? "";
-    else if (a.startsWith("-")) files.push(a); // unknown flag: usage error below
+    else if (a.startsWith("-")) return unknownOption(a, io);
     else files.push(a);
   }
   const ext = out?.toLowerCase().match(/\.(svg|png)$/)?.[1];
-  if (files.length !== 1 || files[0]!.startsWith("-") || !out || !ext || (theme !== "light" && theme !== "dark")) {
+  if (files.length !== 1 || !out || !ext || (theme !== "light" && theme !== "dark")) {
     io.stderr(USAGE);
     return 2;
   }
   const file = files[0]!;
-  let text: string;
-  try {
-    text = io.readFile(file);
-  } catch (e) {
-    io.stderr(`diagent: cannot read ${file}: ${(e as Error).message}\n`);
-    return 2;
-  }
+  const text = readSource(file, io);
+  if (text === undefined) return 2;
   const diagnostics = check(text);
   const ok = !diagnostics.some((d) => d.severity === "error");
   if (!ok) {
     io.stdout(formatText(file, ok, diagnostics));
     return 1;
   }
-  for (const d of diagnostics) io.stderr(`${file}:${d.line}:${d.column} ${d.severity}${d.path ? ` ${d.path}` : ""}: ${d.message}\n`);
+  for (const d of diagnostics) io.stderr(formatDiagnostic(file, d) + "\n");
   const svg = await renderSvg(text, { theme: theme as Theme });
   const write = io.writeFile ?? (() => { throw new Error("no writeFile"); });
   if (ext === "svg") write(out, svg);
@@ -144,14 +131,31 @@ async function render(args: string[], io: Io): Promise<number> {
   return 0;
 }
 
+/** Reads a diagram file; on failure prints the error and returns undefined (exit code 2). */
+function readSource(file: string, io: Io): string | undefined {
+  try {
+    return io.readFile(file);
+  } catch (e) {
+    io.stderr(`diagent: cannot read ${file}: ${(e as Error).message}\n`);
+    return undefined;
+  }
+}
+
+function unknownOption(option: string, io: Io): number {
+  io.stderr(`diagent: unknown option ${option}\n${USAGE}`);
+  return 2;
+}
+
+function formatDiagnostic(file: string, d: Diagnostic): string {
+  return `${file}:${d.line}:${d.column} ${d.severity}${d.path ? ` ${d.path}` : ""}: ${d.message}`;
+}
+
 function formatJson(file: string, ok: boolean, diagnostics: Diagnostic[]): string {
   return JSON.stringify({ file, ok, diagnostics }, null, 2) + "\n";
 }
 
 function formatText(file: string, ok: boolean, diagnostics: Diagnostic[]): string {
-  const lines = diagnostics.map(
-    (d) => `${file}:${d.line}:${d.column} ${d.severity}${d.path ? ` ${d.path}` : ""}: ${d.message}`,
-  );
+  const lines = diagnostics.map((d) => formatDiagnostic(file, d));
   const errors = diagnostics.filter((d) => d.severity === "error").length;
   const warnings = diagnostics.length - errors;
   lines.push(ok ? `${file}: ok (${warnings} warnings)` : `${file}: ${errors} errors, ${warnings} warnings`);

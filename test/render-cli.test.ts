@@ -55,4 +55,22 @@ describe("diagent render", () => {
     expect((await run(["render", "a.cd.yaml", "-o", "a.pdf"], { "a.cd.yaml": ok })).code).toBe(2);
     expect((await run(["render", "a.cd.yaml", "-o", "a.svg", "--theme", "red"], { "a.cd.yaml": ok })).code).toBe(2);
   });
+
+  it("prints warnings in the format of check, writes the file anyway", async () => {
+    const warned = ok + "layout:\n  classes:\n    Нет: { x: 1, y: 2 }\n";
+    const checked = await run(["check", "a.cd.yaml"], { "a.cd.yaml": warned });
+    const r = await run(["render", "a.cd.yaml", "-o", "a.svg"], { "a.cd.yaml": warned });
+    expect(r.code).toBe(0);
+    const line = checked.stdout.split("\n")[0]!;
+    expect(line).toContain("warning");
+    expect(r.stderr).toBe(line + "\n");
+    expect(String(r.written["a.svg"])).toMatch(/^<svg /);
+  });
+
+  it("names an unknown option in the usage error", async () => {
+    const r = await run(["render", "a.cd.yaml", "-o", "a.svg", "--bogus"], { "a.cd.yaml": ok });
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("unknown option --bogus");
+    expect(r.written).toEqual({});
+  });
 });
