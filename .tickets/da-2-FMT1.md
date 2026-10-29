@@ -59,3 +59,19 @@ tags: [ready-for-agent]
 - Тесты на каждую проверку: невалидный пример → ожидаемые путь, строка и сообщение.
 - `check` на `examples/kolobok.cd.yaml` проходит.
 - YAML-ловушки (`- #поле`, `~`, `*` без кавычек) дают понятную ошибку, а не падение.
+
+## Comments
+
+### 2026-10-29T08:36:44Z · t3m8ch
+
+Сделано: каркас на TypeScript (pnpm, vitest, tsx, esbuild), JSON Schema в `src/schema.ts` и команды `diagent schema` и `diagent check [--json]`. Виды связей описаны одной таблицей в `src/kinds.ts`, её читают модель, `check` и схема.
+
+Решения сверх тикета:
+- `relations` сгруппированы по виду: `relations.<вид>[]`, без поля `kind`;
+- кратности композиции и агрегации — `whole_multiplicity` и `part_multiplicity`;
+- у композиции и агрегации есть необязательный `name`;
+- `reading: forward | backward`.
+
+`check` дополнительно ловит совпадение `id` связи с автоматическим ключом другой связи.
+
+Что проверить: `pnpm dev check examples/kolobok.cd.yaml` и тесты `test/check.test.ts`.
