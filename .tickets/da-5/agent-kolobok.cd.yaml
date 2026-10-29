@@ -1,0 +1,98 @@
+classes:
+  Персонаж:
+    abstract: true
+    attributes:
+      - { name: имя, type: String }
+  Человек: {}
+  Зверь: {}
+  Дед: {}
+  Баба:
+    operations:
+      - { name: испечь, returns: Колобок }
+  Заяц: {}
+  Волк: {}
+  Медведь: {}
+  Лиса:
+    operations:
+      - { name: съесть, params: { жертва: Колобок } }
+  Колобок:
+    operations:
+      - { name: убежать }
+      - { name: спеть, params: { слушатель: Персонаж } }
+  Песенка:
+    attributes:
+      - { name: текст, type: String }
+  Мука: {}
+  Хранилище: {}
+  Тесто: {}
+  Сметана: {}
+  Масло: {}
+  Окошко: {}
+
+relations:
+  generalization:
+    - { child: Человек, parent: Персонаж }
+    - { child: Зверь, parent: Персонаж }
+    - { child: Колобок, parent: Персонаж }
+    - { child: Дед, parent: Человек }
+    - { child: Баба, parent: Человек }
+    - { child: Заяц, parent: Зверь }
+    - { child: Волк, parent: Зверь }
+    - { child: Медведь, parent: Зверь }
+    - { child: Лиса, parent: Зверь }
+  dependency:
+    - { client: Баба, supplier: Колобок, stereotype: create }
+  aggregation:
+    - { whole: Тесто, part: Мука, whole_multiplicity: "1", part_multiplicity: "1..*" }
+    - { whole: Тесто, part: Сметана, whole_multiplicity: "1", part_multiplicity: "1" }
+  association:
+    - name: просит
+      reading: forward
+      ends:
+        - { class: Дед, role: просящий, multiplicity: "1" }
+        - { class: Баба, role: исполнительница, multiplicity: "1", navigable: true }
+    - name: собирает из
+      reading: forward
+      ends:
+        - { class: Баба, role: сборщица, multiplicity: "1" }
+        - { class: Хранилище, role: источник муки, multiplicity: "1..*", navigable: true }
+    - name: хранит
+      reading: forward
+      ends:
+        - { class: Хранилище, role: склад, multiplicity: "1" }
+        - { class: Мука, role: запас, multiplicity: "0..*", navigable: true }
+    - name: жарит на
+      reading: forward
+      ends:
+        - { class: Колобок, role: изделие, multiplicity: "1" }
+        - { class: Масло, role: жир, multiplicity: "1", navigable: true }
+    - name: остывает на
+      reading: forward
+      ends:
+        - { class: Колобок, role: остывающий, multiplicity: "1" }
+        - { class: Окошко, role: место, multiplicity: "1", navigable: true }
+    - name: замешивает
+      reading: forward
+      ends:
+        - { class: Баба, role: мастерица, multiplicity: "1" }
+        - { class: Тесто, role: замес, multiplicity: "1", navigable: true }
+    - name: поёт
+      reading: forward
+      ends:
+        - { class: Колобок, role: певец, multiplicity: "1" }
+        - { class: Песенка, role: исполняемая, multiplicity: "1", navigable: true }
+    - name: встречает
+      reading: forward
+      ends:
+        - { class: Колобок, role: путник, multiplicity: "1" }
+        - { class: Зверь, role: встречный, multiplicity: "0..*", navigable: true }
+    - name: съедает
+      reading: forward
+      ends:
+        - { class: Лиса, role: хищница, multiplicity: "1" }
+        - { class: Колобок, role: добыча, multiplicity: "1", navigable: true }
+    - name: убегает от
+      reading: forward
+      ends:
+        - { class: Колобок, role: беглец, multiplicity: "1" }
+        - { class: Человек, role: хозяин, multiplicity: "2", navigable: true }
