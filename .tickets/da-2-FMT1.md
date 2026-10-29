@@ -1,6 +1,6 @@
 ---
 id: da-2-FMT1
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-29T07:05:59Z
@@ -10,6 +10,8 @@ assignee: t3m8ch
 aliases: [j5tsk]
 parent: da-1
 tags: [ready-for-agent]
+closed: 2026-10-29T08:36:58Z
+close-reason: completed
 ---
 # Формат диаграммы, JSON Schema и команда check
 
