@@ -80,7 +80,7 @@ describe("layoutText", () => {
     const parent = layout.classes.find((c) => c.name === "Зверь")!;
     const child = layout.classes.find((c) => c.name === "Лиса")!;
     expect(parent.y + parent.height).toBeLessThan(child.y);
-    expect(layout.edges[0]).toMatchObject({ source: "Зверь", target: "Лиса", sourceMarker: "triangle", targetMarker: "none" });
+    expect(layout.relations[0]).toMatchObject({ source: "Зверь", target: "Лиса", sourceMarker: "triangle", targetMarker: "none" });
   });
 
   it("sizes a class by its content", async () => {
@@ -92,13 +92,13 @@ describe("layoutText", () => {
     expect(long!.height).toBeGreaterThan(short!.height);
   });
 
-  it("does not overlap classes, nor edge labels", async () => {
+  it("does not overlap classes, nor relation labels", async () => {
     const layout = await layoutText(kolobok);
     type R = { x: number; y: number; width: number; height: number };
     const overlap = (a: R, b: R) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
     const boxes = layout.classes;
     for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) expect(overlap(boxes[i]!, boxes[j]!)).toBe(false);
-    const labels = layout.edges.flatMap((e) => e.labels);
+    const labels = layout.relations.flatMap((e) => e.labels);
     for (let i = 0; i < labels.length; i++) {
       for (const b of boxes) expect(overlap(labels[i]!, b), labels[i]!.text).toBe(false);
       for (let j = i + 1; j < labels.length; j++)
@@ -111,8 +111,8 @@ describe("layoutText", () => {
   });
 
   it("draws a self-association as a loop", async () => {
-    const edge = (await layoutText(small["self-association"]!)).edges[0]!;
-    expect(edge.source).toBe(edge.target);
-    expect(edge.points.length).toBeGreaterThanOrEqual(3);
+    const relation = (await layoutText(small["self-association"]!)).relations[0]!;
+    expect(relation.source).toBe(relation.target);
+    expect(relation.points.length).toBeGreaterThanOrEqual(3);
   });
 });

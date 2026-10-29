@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { bendAt, edgeAt, filePoints, insertIndex } from "../src/bends.js";
+import { bendAt, relationAt, filePoints, insertIndex } from "../src/bends.js";
 import { History, inverseOf } from "../src/history.js";
 import { parseActions } from "../src/edit.js";
 import { applyActions } from "../src/save.js";
@@ -12,21 +12,21 @@ const pos = (l: Awaited<ReturnType<typeof layoutText>>) => Object.fromEntries(l.
 describe("da-7 acceptance", () => {
   it("bends placed in the editor are on the route after render", async () => {
     const auto = await layoutText(kolobok);
-    const key = auto.edges.find((e) => e.kind === "generalization")!.key;
+    const key = auto.relations.find((e) => e.kind === "generalization")!.key;
     // Two bends in file order, off the automatic route and on the 10 px grid.
     const bends: [number, number][] = [[-120, 40], [-120, 300]];
     const saved = applyActions(kolobok, [{ type: "setBends", key, bends }]);
-    const edge = (await layoutText(saved)).edges.find((e) => e.key === key)!;
-    const pts = filePoints(edge);
+    const relation = (await layoutText(saved)).relations.find((e) => e.key === key)!;
+    const pts = filePoints(relation);
     let from = 0;
     for (const [x, y] of bends) {
       const i = pts.findIndex((p, j) => j >= from && p.x === x && p.y === y);
       expect(i, `bend ${x},${y} on the route`).toBeGreaterThanOrEqual(0);
       from = i;
     }
-    for (let i = 0; i + 1 < edge.points.length; i++) {
-      const a = edge.points[i]!;
-      const b = edge.points[i + 1]!;
+    for (let i = 0; i + 1 < relation.points.length; i++) {
+      const a = relation.points[i]!;
+      const b = relation.points[i + 1]!;
       expect(a.x === b.x || a.y === b.y).toBe(true);
     }
   });
@@ -90,21 +90,21 @@ describe("pinAll / unpinAll in the save pipeline", () => {
 });
 
 describe("bend geometry", () => {
-  const edge: any = {
+  const relation: any = {
     key: "k",
     reversed: true,
     // runs ends[1] -> ends[0]; in file order it is (100,0) -> (100,100) -> (0,100)
     points: [{ x: 0, y: 100 }, { x: 100, y: 100 }, { x: 100, y: 0 }],
   };
-  it("finds the edge near a point and a handle near a point", () => {
-    expect(edgeAt([edge], { x: 50, y: 103 })).toBe(edge);
-    expect(edgeAt([edge], { x: 50, y: 60 })).toBeUndefined();
+  it("finds the relation near a point and a handle near a point", () => {
+    expect(relationAt([relation], { x: 50, y: 103 })).toBe(relation);
+    expect(relationAt([relation], { x: 50, y: 60 })).toBeUndefined();
     expect(bendAt([[10, 10], [50, 50]], { x: 52, y: 49 })).toBe(1);
     expect(bendAt([[10, 10]], { x: 80, y: 80 })).toBe(-1);
   });
-  it("inserts a bend in file order, also on a reversed edge", () => {
-    expect(insertIndex(edge, [], { x: 50, y: 100 })).toBe(0);
-    expect(insertIndex(edge, [[100, 50]], { x: 50, y: 100 })).toBe(1);
-    expect(insertIndex(edge, [[100, 50]], { x: 100, y: 20 })).toBe(0);
+  it("inserts a bend in file order, also on a reversed relation", () => {
+    expect(insertIndex(relation, [], { x: 50, y: 100 })).toBe(0);
+    expect(insertIndex(relation, [[100, 50]], { x: 50, y: 100 })).toBe(1);
+    expect(insertIndex(relation, [[100, 50]], { x: 100, y: 20 })).toBe(0);
   });
 });

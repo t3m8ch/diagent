@@ -1,5 +1,5 @@
 /**
- * Automatic layout: model -> plain data (class boxes, edge routes, label positions).
+ * Automatic layout: model -> plain data (class boxes, relation routes, label positions).
  * Browser-safe (elkjs bundle, no Node imports). Drawing lives in `draw.ts` and only
  * reads the result of this module, so pinned classes and bends (da-4) and the
  * editor (da-6) can produce or modify a `DiagramLayout` without touching the drawing code.
@@ -54,7 +54,7 @@ export interface ClassBox {
 
 export type Marker = "none" | "triangle" | "diamond" | "filled-diamond" | "arrow";
 
-export interface EdgeLabel {
+export interface RelationLabel {
   kind: "name" | "stereotype" | "source-end" | "target-end";
   text: string;
   x: number;
@@ -63,7 +63,7 @@ export interface EdgeLabel {
   height: number;
 }
 
-export interface EdgeRoute {
+export interface RelationRoute {
   /** Relation key as in `layout.relations`. */
   key: string;
   kind: Relation["kind"];
@@ -74,7 +74,7 @@ export interface EdgeRoute {
   sourceMarker: Marker;
   targetMarker: Marker;
   dashed: boolean;
-  labels: EdgeLabel[];
+  labels: RelationLabel[];
   /** True when `points` run from `ends[1]` to `ends[0]` of the relation (parents/interfaces go on top). */
   reversed: boolean;
 }
@@ -86,7 +86,7 @@ export interface DiagramLayout {
   width: number;
   height: number;
   classes: ClassBox[];
-  edges: EdgeRoute[];
+  relations: RelationRoute[];
 }
 
 // ---- class content ------------------------------------------------------
@@ -139,7 +139,7 @@ function measureClass(c: ClassModel): Omit<ClassBox, "x" | "y"> {
 }
 
 // ---- relation semantics -------------------------------------------------
-interface EdgeSpec {
+interface RelationSpec {
   relation: Relation;
   /** ELK source is the visually upper end: parents/interfaces/wholes/clients go up. */
   swap: boolean;
@@ -200,7 +200,7 @@ const round = (n: number) => Math.round(n);
 export async function layoutDiagram(model: Model, pins?: Pins): Promise<DiagramLayout> {
   const boxes = new Map(model.classes.map((c) => [c.name, measureClass(c)]));
 
-  const specs: EdgeSpec[] = model.relations.map((relation) => ({
+  const specs: RelationSpec[] = model.relations.map((relation) => ({
     relation,
     swap: relation.kind === "generalization" || relation.kind === "realization",
   }));
@@ -245,7 +245,7 @@ export async function layoutDiagram(model: Model, pins?: Pins): Promise<DiagramL
   });
   const byName = new Map(classes.map((c) => [c.name, c]));
 
-  const routes: EdgeRoute[] = specs.map(({ relation: r, swap }, i) => {
+  const routes: RelationRoute[] = specs.map(({ relation: r, swap }, i) => {
     const e = result.edges![i] as any;
     const sec = e.sections?.[0];
     const points: Point[] = sec
@@ -254,10 +254,10 @@ export async function layoutDiagram(model: Model, pins?: Pins): Promise<DiagramL
     const [m0, m1] = markersFor(r);
     const [sourceMarker, targetMarker] = swap ? [m1, m0] : [m0, m1];
 
-    const labels: EdgeLabel[] = [];
+    const labels: RelationLabel[] = [];
     for (const l of (e.labels ?? []) as any[]) {
       const part = String(l.id).split("#")[1]!;
-      let kind: EdgeLabel["kind"];
+      let kind: RelationLabel["kind"];
       let text: string = l.text;
       if (part === "tail") kind = "source-end";
       else if (part === "head") kind = "target-end";
@@ -286,7 +286,7 @@ export async function layoutDiagram(model: Model, pins?: Pins): Promise<DiagramL
     };
   });
 
-  const auto = fitArea(settleLabels({ width: round(result.width ?? 0), height: round(result.height ?? 0), classes, edges: routes }), false);
+  const auto = fitArea(settleLabels({ width: round(result.width ?? 0), height: round(result.height ?? 0), classes, relations: routes }), false);
   const hasPins = pins && (Object.keys(pins.classes ?? {}).length > 0 || Object.keys(pins.relations ?? {}).length > 0);
   return hasPins ? applyPins(auto, model, pins) : auto;
 }
@@ -342,11 +342,11 @@ const overlaps = (a: ClassBox, b: ClassBox, gap = GAP) =>
  *    keeps the offset it had in `auto` to each already placed neighbour (averaged); the
  *    closest spot that clears every placed class by 44 px is taken. Classes with no placed
  *    neighbour use the automatic position shifted by the first pin's offset.
- * 3. An edge whose classes moved by the same offset, with no bends and no collision, keeps its
- *    automatic route (translated). Every other edge goes through `routeAround`: orthogonal A*
+ * 3. An relation whose classes moved by the same offset, with no bends and no collision, keeps its
+ *    automatic route (translated). Every other relation goes through `routeAround`: orthogonal A*
  *    that never crosses a class other than its two ends and passes through the bends.
- * 4. Labels that collide with a class (and all labels of re-routed edges) are put at the
- *    first free candidate spot next to the edge.
+ * 4. Labels that collide with a class (and all labels of re-routed relations) are put at the
+ *    first free candidate spot next to the relation.
  */
 export function applyPins(auto: DiagramLayout, model: Model, pins: Pins): DiagramLayout {
   const pinned = pins.classes ?? {};
@@ -397,8 +397,8 @@ export function applyPins(auto: DiagramLayout, model: Model, pins: Pins): Diagra
 
   const relByKey = new Map(model.relations.map((r) => [r.key, r]));
   const used = new Set<string>();
-  const taken: EdgeLabel[] = [];
-  const edges: EdgeRoute[] = auto.edges.map((e) => {
+  const taken: RelationLabel[] = [];
+  const relations: RelationRoute[] = auto.relations.map((e) => {
     const s = byName.get(e.source)!;
     const t = byName.get(e.target)!;
     const sa = autoBy.get(e.source)!;
@@ -406,7 +406,7 @@ export function applyPins(auto: DiagramLayout, model: Model, pins: Pins): Diagra
     const ds = { x: s.x - sa.x, y: s.y - sa.y };
     const dt = { x: t.x - ta.x, y: t.y - ta.y };
     const bends = pins.relations?.[e.key]?.bends;
-    let routed: EdgeRoute | undefined;
+    let routed: RelationRoute | undefined;
     let rerouted = false;
     if (e.source === e.target) routed = shift(e, ds.x, ds.y);
     else if (!bends?.length && ds.x === dt.x && ds.y === dt.y) {
@@ -429,30 +429,30 @@ export function applyPins(auto: DiagramLayout, model: Model, pins: Pins): Diagra
     return { ...routed, labels };
   });
 
-  return fitArea(settleLabels({ width: 0, height: 0, classes, edges }), true);
+  return fitArea(settleLabels({ width: 0, height: 0, classes, relations }), true);
 }
 
 /** Drawing area: everything we know about, plus the margin. */
 function fitArea(layout: DiagramLayout, always: boolean): DiagramLayout {
-  const { classes, edges } = layout;
+  const { classes, relations } = layout;
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   const see = (x: number, y: number) => {
     minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
   };
   for (const c of classes) { see(c.x, c.y); see(c.x + c.width, c.y + c.height); }
-  for (const e of edges) {
+  for (const e of relations) {
     for (const p of e.points) see(p.x, p.y);
     for (const l of e.labels) { see(l.x, l.y); see(l.x + l.width, l.y + l.height); }
   }
-  if (!isFinite(minX)) return { width: 2 * MARGIN, height: 2 * MARGIN, classes, edges };
+  if (!isFinite(minX)) return { width: 2 * MARGIN, height: 2 * MARGIN, classes, relations };
   const originX = minX - MARGIN;
   const originY = minY - MARGIN;
   if (!always && originX >= (layout.originX ?? 0) && originY >= (layout.originY ?? 0) && maxX + MARGIN <= (layout.originX ?? 0) + layout.width && maxY + MARGIN <= (layout.originY ?? 0) + layout.height)
     return layout;
-  return { originX, originY, width: maxX + MARGIN - originX, height: maxY + MARGIN - originY, classes, edges };
+  return { originX, originY, width: maxX + MARGIN - originX, height: maxY + MARGIN - originY, classes, relations };
 }
 
-function shift(e: EdgeRoute, dx: number, dy: number): EdgeRoute {
+function shift(e: RelationRoute, dx: number, dy: number): RelationRoute {
   if (dx === 0 && dy === 0) return e;
   return {
     ...e,
@@ -462,7 +462,7 @@ function shift(e: EdgeRoute, dx: number, dy: number): EdgeRoute {
 }
 
 /** Reading-direction glyph depends on where the boxes ended up. */
-function fixGlyph(e: EdgeRoute, r: Relation, byName: Map<string, ClassBox>): EdgeRoute {
+function fixGlyph(e: RelationRoute, r: Relation, byName: Map<string, ClassBox>): RelationRoute {
   if (r.kind !== "association" || r.reading === undefined) return e;
   const from = byName.get(r.ends[r.reading === 1 ? 0 : 1].class)!;
   const to = byName.get(r.ends[r.reading].class)!;
@@ -592,8 +592,8 @@ function crossesBox(points: Point[], boxes: ClassBox[], a: ClassBox, b: ClassBox
   return false;
 }
 
-/** Candidate top-left corners for a label next to the edge, best first; a ring search around the anchor comes last. */
-function labelCandidates(points: Point[], l: EdgeLabel): Point[] {
+/** Candidate top-left corners for a label next to the relation, best first; a ring search around the anchor comes last. */
+function labelCandidates(points: Point[], l: RelationLabel): Point[] {
   const out = nearCandidates(points, l);
   const anchor = anchorOf(points, l);
   for (let r = 8; r <= 200; r += 8)
@@ -605,7 +605,7 @@ function labelCandidates(points: Point[], l: EdgeLabel): Point[] {
 }
 
 /** The point a label belongs to: the end of the route for end labels, the middle of the longest segment otherwise. */
-function anchorOf(points: Point[], l: EdgeLabel): Point {
+function anchorOf(points: Point[], l: RelationLabel): Point {
   const n = points.length;
   if (n < 2) return { x: l.x, y: l.y };
   if (l.kind === "source-end") return points[0]!;
@@ -619,7 +619,7 @@ function anchorOf(points: Point[], l: EdgeLabel): Point {
   return { x: (points[best]!.x + points[best - 1]!.x) / 2 - l.width / 2, y: (points[best]!.y + points[best - 1]!.y) / 2 - l.height / 2 };
 }
 
-function nearCandidates(points: Point[], l: EdgeLabel): Point[] {
+function nearCandidates(points: Point[], l: RelationLabel): Point[] {
   const out: Point[] = [];
   const n = points.length;
   if (n < 2) return [{ x: l.x, y: l.y }];
@@ -674,15 +674,15 @@ type Seg = [Point, Point];
  * are fine stay where they are. Pure.
  */
 function settleLabels(layout: DiagramLayout): DiagramLayout {
-  const { classes, edges } = layout;
-  const segs: Seg[] = edges.flatMap((e) => e.points.slice(1).map((p, i): Seg => [e.points[i]!, p]));
-  const onLine = (l: EdgeLabel) => segs.some(([a, b]) => segHitsBox(a, b, l));
-  const onClass = (l: EdgeLabel) => classes.some((c) => rectsOverlap(l, c));
-  const hard = (l: EdgeLabel) => !onClass(l) && !onLine(l);
+  const { classes, relations } = layout;
+  const segs: Seg[] = relations.flatMap((e) => e.points.slice(1).map((p, i): Seg => [e.points[i]!, p]));
+  const onLine = (l: RelationLabel) => segs.some(([a, b]) => segHitsBox(a, b, l));
+  const onClass = (l: RelationLabel) => classes.some((c) => rectsOverlap(l, c));
+  const hard = (l: RelationLabel) => !onClass(l) && !onLine(l);
 
-  const taken: EdgeLabel[] = [];
-  const kept = edges.map((e) => e.labels.map((l) => hard(l) && !taken.some((t) => rectsOverlap(l, t)) && (taken.push(l), true)));
-  const out = edges.map((e, i) => {
+  const taken: RelationLabel[] = [];
+  const kept = relations.map((e) => e.labels.map((l) => hard(l) && !taken.some((t) => rectsOverlap(l, t)) && (taken.push(l), true)));
+  const out = relations.map((e, i) => {
     let changed = false;
     const labels = e.labels.map((l, j) => {
       if (kept[i]![j]) return l;
@@ -698,13 +698,13 @@ function settleLabels(layout: DiagramLayout): DiagramLayout {
     });
     return changed ? { ...e, labels } : e;
   });
-  return { ...layout, edges: out };
+  return { ...layout, relations: out };
 }
 
 /** First candidate that clears every class and the labels already placed; else one that clears the classes. */
-function placeLabel(points: Point[], l: EdgeLabel, boxes: ClassBox[], taken: EdgeLabel[]): EdgeLabel {
+function placeLabel(points: Point[], l: RelationLabel, boxes: ClassBox[], taken: RelationLabel[]): RelationLabel {
   const cands = labelCandidates(points, l).map((p) => ({ ...l, x: round(p.x), y: round(p.y) }));
-  const clear = (c: EdgeLabel) => !boxes.some((b) => rectsOverlap(c, b));
+  const clear = (c: RelationLabel) => !boxes.some((b) => rectsOverlap(c, b));
   return (
     cands.find((c) => clear(c) && !taken.some((t) => rectsOverlap(c, t))) ??
     cands.find(clear) ??

@@ -90,9 +90,9 @@ layout:
   relations:
 ${bends}`;
 
-  it("routes the edge through the given points, orthogonally", async () => {
+  it("routes the relation through the given points, orthogonally", async () => {
     const l = await layoutText(two("    generalization:Ребёнок-Родитель: { bends: [[300, 200], [300, 120]] }\n"));
-    const e = l.edges.find((x) => x.key === "generalization:Ребёнок-Родитель")!;
+    const e = l.relations.find((x) => x.key === "generalization:Ребёнок-Родитель")!;
     const has = (x: number, y: number) => e.points.some((p) => p.x === x && p.y === y);
     expect(has(300, 200)).toBe(true);
     expect(has(300, 120)).toBe(true);
@@ -108,14 +108,14 @@ ${bends}`;
 
   it("leaves other relations to the engine and ends on the class borders", async () => {
     const l = await layoutText(two("    generalization:Ребёнок-Родитель: { bends: [[300, 200]] }\n"));
-    const e = l.edges.find((x) => x.kind === "generalization")!;
+    const e = l.relations.find((x) => x.kind === "generalization")!;
     const box = (n: string) => l.classes.find((c) => c.name === n)!;
     const onBorder = (p: { x: number; y: number }, c: ReturnType<typeof box>) =>
       p.x >= c.x && p.x <= c.x + c.width && p.y >= c.y && p.y <= c.y + c.height &&
       (p.x === c.x || p.x === c.x + c.width || p.y === c.y || p.y === c.y + c.height);
     expect(onBorder(e.points[0]!, box("Родитель"))).toBe(true);
     expect(onBorder(e.points[e.points.length - 1]!, box("Ребёнок"))).toBe(true);
-    const dep = l.edges.find((x) => x.kind === "dependency")!;
+    const dep = l.relations.find((x) => x.kind === "dependency")!;
     expect(dep.points.length).toBeGreaterThanOrEqual(2);
   });
 
@@ -150,10 +150,10 @@ describe("pinned layout invariants", () => {
       expect(labelProblems(await layoutText(withLayout(layout)))).toEqual([]);
     });
 
-    it(`no edge or label crosses a foreign class (${name})`, async () => {
+    it(`no relation or label crosses a foreign class (${name})`, async () => {
       const l = await layoutText(withLayout(layout));
       noOverlap(l);
-      for (const e of l.edges) {
+      for (const e of l.relations) {
         for (let i = 1; i < e.points.length; i++) {
           const a = e.points[i - 1]!;
           const b = e.points[i]!;

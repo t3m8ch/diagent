@@ -1,10 +1,10 @@
-/** Geometry of bend editing (da-7): hit-testing edges and bend handles, and where a new bend goes in the list. Pure, browser-safe. */
-import type { EdgeRoute, Point } from "./layout.js";
+/** Geometry of bend editing (da-7): hit-testing relations and bend handles, and where a new bend goes in the list. Pure, browser-safe. */
+import type { RelationRoute, Point } from "./layout.js";
 
 export type Bend = [number, number];
 
 /** The route polyline in file order (first end -> second end), the order `bends` are stored in. */
-export const filePoints = (e: EdgeRoute): Point[] => (e.reversed ? [...e.points].reverse() : e.points);
+export const filePoints = (e: RelationRoute): Point[] => (e.reversed ? [...e.points].reverse() : e.points);
 
 /** Nearest point of the segment a-b to p, with its distance to p and the fraction along a-b. */
 function nearestOnSegment(a: Point, b: Point, p: Point) {
@@ -31,11 +31,11 @@ function project(points: Point[], p: Point): { at: number; dist: number } {
   return best;
 }
 
-/** The edge closest to p within `tol` px, or undefined. Later (drawn on top) edges win ties. */
-export function edgeAt(edges: EdgeRoute[], p: Point, tol = 6): EdgeRoute | undefined {
-  let best: EdgeRoute | undefined;
+/** The relation closest to p within `tol` px, or undefined. Later (drawn on top) relations win ties. */
+export function relationAt(relations: RelationRoute[], p: Point, tol = 6): RelationRoute | undefined {
+  let best: RelationRoute | undefined;
   let bestDist = tol;
-  for (const e of edges) {
+  for (const e of relations) {
     const d = project(e.points, p).dist;
     if (d <= bestDist) {
       best = e;
@@ -55,8 +55,8 @@ export function bendAt(bends: Bend[], p: Point, radius = 7): number {
  * Where a new bend at `p` goes in `bends` (file order): after every existing bend that lies
  * before p along the route, so the order of the points follows the line.
  */
-export function insertIndex(edge: EdgeRoute, bends: Bend[], p: Point): number {
-  const pts = filePoints(edge);
+export function insertIndex(relation: RelationRoute, bends: Bend[], p: Point): number {
+  const pts = filePoints(relation);
   const at = project(pts, p).at;
   let i = 0;
   for (const b of bends) if (project(pts, { x: b[0], y: b[1] }).at <= at) i++;

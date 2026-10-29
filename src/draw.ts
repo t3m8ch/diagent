@@ -11,8 +11,8 @@ import {
   PAD_Y,
   type ClassBox,
   type DiagramLayout,
-  type EdgeLabel,
-  type EdgeRoute,
+  type RelationLabel,
+  type RelationRoute,
   type Marker,
   type Point,
 } from "./layout.js";
@@ -45,7 +45,7 @@ export function drawSvg(layout: DiagramLayout, theme: Theme = "light"): string {
   out.push(
     `<rect${ox || oy ? ` x="${n(ox)}" y="${n(oy)}"` : ""} width="${n(layout.width)}" height="${n(layout.height)}" fill="${bg}"/>`,
   );
-  for (const e of layout.edges) out.push(drawEdge(e, fg, bg));
+  for (const e of layout.relations) out.push(drawRelation(e, fg, bg));
   for (const c of layout.classes) out.push(drawClass(c, fg, bg));
   out.push("</svg>");
   return out.join("\n") + "\n";
@@ -106,7 +106,7 @@ function drawMarker(m: Marker, tip: Point, d: Point, fg: string, bg: string): st
   }
 }
 
-function drawEdge(e: EdgeRoute, fg: string, bg: string): string {
+function drawRelation(e: RelationRoute, fg: string, bg: string): string {
   const pts = e.points.map((p) => ({ ...p }));
   if (pts.length < 2) return "";
   const last = pts.length - 1;
@@ -128,6 +128,6 @@ function drawEdge(e: EdgeRoute, fg: string, bg: string): string {
   return parts.filter(Boolean).join("\n");
 }
 
-function drawLabel(l: EdgeLabel): string {
+function drawLabel(l: RelationLabel): string {
   return `<text x="${n(l.x + 2)}" y="${n(l.y + l.height - 4)}" font-size="${LABEL_FONT_SIZE}">${esc(l.text)}</text>`;
 }

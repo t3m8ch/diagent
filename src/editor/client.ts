@@ -3,7 +3,7 @@
  * (`layoutDiagram`, `applyPins`, `drawSvg`); the server only holds the file.
  * Bundled with esbuild into `client.js` (`pnpm build`).
  */
-import { bendAt, edgeAt, insertIndex, type Bend } from "../bends.js";
+import { bendAt, relationAt, insertIndex, type Bend } from "../bends.js";
 import { drawSvg, type Theme } from "../draw.js";
 import { History, inverseOf } from "../history.js";
 import { applyPins, layoutDiagram, parsePins, type ClassBox, type DiagramLayout, type Pins } from "../layout.js";
@@ -38,7 +38,7 @@ let auto: DiagramLayout | undefined; // autolayout without pins
 let pins: Pins = {};
 let shown: DiagramLayout | undefined; // what is on screen now
 let drag: { name: string; dx: number; dy: number; box: ClassBox; moved: boolean } | undefined;
-/** Edge whose bends are shown and editable (relation key). */
+/** Relation whose bends are shown and editable (relation key). */
 let selected: string | undefined;
 /** Bends of `selected` while one is being dragged or created (not saved yet). */
 let draftBends: Bend[] | undefined;
@@ -65,17 +65,17 @@ function draw(layout: DiagramLayout) {
     dot.setAttribute("fill", "#1a73e8");
     svg.appendChild(dot);
   }
-  const edge = selected ? layout.edges.find((e) => e.key === selected) : undefined;
-  if (edge) {
+  const relation = selected ? layout.relations.find((e) => e.key === selected) : undefined;
+  if (relation) {
     const line = document.createElementNS(ns, "polyline");
-    line.setAttribute("points", edge.points.map((p) => `${p.x},${p.y}`).join(" "));
+    line.setAttribute("points", relation.points.map((p) => `${p.x},${p.y}`).join(" "));
     line.setAttribute("fill", "none");
     line.setAttribute("stroke", "#1a73e8");
     line.setAttribute("stroke-width", "3");
     line.setAttribute("opacity", "0.45");
     line.setAttribute("pointer-events", "none");
     svg.appendChild(line);
-    for (const [x, y] of bendsOf(edge.key)) {
+    for (const [x, y] of bendsOf(relation.key)) {
       const h = document.createElementNS(ns, "rect");
       h.setAttribute("x", String(x - 4));
       h.setAttribute("y", String(y - 4));
@@ -209,13 +209,13 @@ stage.addEventListener("pointerdown", (e) => {
   window.addEventListener("pointerup", onUp);
 });
 
-/** Pointer down outside any class: grab a bend handle, or press on an edge (select it / add a bend), or deselect. */
+/** Pointer down outside any class: grab a bend handle, or press on an relation (select it / add a bend), or deselect. */
 function startBendInteraction(e: PointerEvent) {
   if (!shown) return;
   const start = toDiagram(e);
-  const edge = selected ? shown.edges.find((x) => x.key === selected) : undefined;
-  const handle = edge ? bendAt(bendsOf(edge.key), start) : -1;
-  const hit = handle >= 0 ? edge : edgeAt(shown.edges, start);
+  const relation = selected ? shown.relations.find((x) => x.key === selected) : undefined;
+  const handle = relation ? bendAt(bendsOf(relation.key), start) : -1;
+  const hit = handle >= 0 ? relation : relationAt(shown.relations, start);
   if (!hit) {
     if (selected) {
       selected = undefined;
@@ -258,7 +258,7 @@ function startBendInteraction(e: PointerEvent) {
     window.removeEventListener("pointerup", onUp);
     cancelAnimationFrame(frame);
     const p = toDiagram(u);
-    if (moved || isNew) place(moved ? p : start); // a plain click on the edge adds a bend there
+    if (moved || isNew) place(moved ? p : start); // a plain click on the relation adds a bend there
     const next = draftBends;
     draftBends = undefined;
     if (!next || (!isNew && !moved) || JSON.stringify(next) === JSON.stringify(before)) {
