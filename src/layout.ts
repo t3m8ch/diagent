@@ -5,6 +5,7 @@
  * editor (da-6) can produce or modify a `DiagramLayout` without touching the drawing code.
  */
 import ElkModule from "elkjs/lib/elk.bundled.js";
+import { rectsOverlap, routeAround, segHitsBox } from "./route.js";
 import type { ClassModel, Model, Operation, Attribute, Relation, Visibility } from "./model.js";
 
 // ---- fixed text metrics -------------------------------------------------
@@ -336,60 +337,96 @@ const overlaps = (a: ClassBox, b: ClassBox, gap = GAP) =>
  * Puts pinned classes at their coordinates and arranges the rest around them. Pure and
  * deterministic; `auto` is an unpinned layout (not modified).
  *
- * 1. Unpinned classes keep their automatic arrangement, shifted by the offset of the first
- *    pinned class (automatic -> pinned), so the picture stays in one piece.
- * 2. Unpinned classes that then overlap a settled class (with a 20 px gap) are moved right or
- *    down, whichever is the smaller step, in (y, x) order. Coordinates only grow, so it ends.
- * 3. An edge whose two classes moved by the same offset and has no bends is the automatic
- *    route, translated. Every other edge is routed orthogonally here: through its bends, or
- *    by a straight/Z route between the two boxes.
+ * 1. Pinned classes are set to their coordinates.
+ * 2. Every other class is placed in breadth-first order from the pinned ones. Its ideal spot
+ *    keeps the offset it had in `auto` to each already placed neighbour (averaged); the
+ *    closest spot that clears every placed class by 44 px is taken. Classes with no placed
+ *    neighbour use the automatic position shifted by the first pin's offset.
+ * 3. An edge whose classes moved by the same offset, with no bends and no collision, keeps its
+ *    automatic route (translated). Every other edge goes through `routeAround`: orthogonal A*
+ *    that never crosses a class other than its two ends and passes through the bends.
+ * 4. Labels that collide with a class (and all labels of re-routed edges) are put at the
+ *    first free candidate spot next to the edge.
  */
 export function applyPins(auto: DiagramLayout, model: Model, pins: Pins): DiagramLayout {
   const pinned = pins.classes ?? {};
-  const autoPos = new Map(auto.classes.map((c) => [c.name, { x: c.x, y: c.y }]));
   const first = auto.classes.find((c) => pinned[c.name]);
   const base = first ? { x: pinned[first.name]!.x - first.x, y: pinned[first.name]!.y - first.y } : { x: 0, y: 0 };
+  const autoBy = new Map(auto.classes.map((c) => [c.name, c]));
 
   const classes: ClassBox[] = auto.classes.map((c) => {
     const p = pinned[c.name];
     return p ? { ...c, x: p.x, y: p.y } : { ...c, x: c.x + base.x, y: c.y + base.y };
   });
-  const settled = classes.filter((c) => pinned[c.name]);
-  const free = classes.filter((c) => !pinned[c.name]).sort((a, b) => a.y - b.y || a.x - b.x || (a.name < b.name ? -1 : 1));
-  for (const c of free) {
-    for (;;) {
-      const hit = settled.find((o) => overlaps(c, o));
-      if (!hit) break;
-      const right = hit.x + hit.width + GAP - c.x;
-      const down = hit.y + hit.height + GAP - c.y;
-      if (right <= down) c.x += right;
-      else c.y += down;
-    }
-    settled.push(c);
-  }
   const byName = new Map(classes.map((c) => [c.name, c]));
-  const relByKey = new Map(model.relations.map((r) => [r.key, r]));
 
+  const nb = new Map<string, string[]>(classes.map((c) => [c.name, []]));
+  for (const r of model.relations) {
+    const [a, b] = [r.ends[0].class, r.ends[1].class];
+    if (a !== b) {
+      nb.get(a)!.push(b);
+      nb.get(b)!.push(a);
+    }
+  }
+  const placed = new Set(classes.filter((c) => pinned[c.name]).map((c) => c.name));
+  const order: string[] = [];
+  const queue = [...placed];
+  const seen = new Set(placed);
+  while (queue.length > 0) {
+    const n = queue.shift()!;
+    for (const m of nb.get(n)!) if (!seen.has(m)) { seen.add(m); order.push(m); queue.push(m); }
+  }
+  for (const c of classes) if (!seen.has(c.name)) order.push(c.name);
+
+  for (const name of order) {
+    const c = byName.get(name)!;
+    const a = autoBy.get(name)!;
+    const ns = nb.get(name)!.filter((m) => placed.has(m));
+    let ix = a.x + base.x;
+    let iy = a.y + base.y;
+    if (ns.length > 0) {
+      ix = round(ns.reduce((s, m) => s + byName.get(m)!.x + (a.x - autoBy.get(m)!.x), 0) / ns.length);
+      iy = round(ns.reduce((s, m) => s + byName.get(m)!.y + (a.y - autoBy.get(m)!.y), 0) / ns.length);
+    }
+    const obstacles = [...placed].map((n) => byName.get(n)!);
+    const spot = freeSpot(c, ix, iy, obstacles);
+    c.x = spot.x;
+    c.y = spot.y;
+    placed.add(name);
+  }
+
+  const relByKey = new Map(model.relations.map((r) => [r.key, r]));
+  const used = new Set<string>();
+  const taken: EdgeLabel[] = [];
   const edges: EdgeRoute[] = auto.edges.map((e) => {
     const s = byName.get(e.source)!;
     const t = byName.get(e.target)!;
-    const sa = autoPos.get(e.source)!;
-    const ta = autoPos.get(e.target)!;
+    const sa = autoBy.get(e.source)!;
+    const ta = autoBy.get(e.target)!;
     const ds = { x: s.x - sa.x, y: s.y - sa.y };
     const dt = { x: t.x - ta.x, y: t.y - ta.y };
     const bends = pins.relations?.[e.key]?.bends;
-    const r = relByKey.get(e.key)!;
-    let routed: EdgeRoute;
-    if (e.source === e.target) {
-      routed = shift(e, ds.x, ds.y);
-    } else if (!bends?.length && ds.x === dt.x && ds.y === dt.y) {
-      routed = shift(e, ds.x, ds.y);
-    } else {
-      const via = bends ? (e.reversed ? [...bends].reverse() : bends).map(([x, y]) => ({ x, y })) : [];
-      routed = { ...e, points: routeThrough(s, t, via) };
-      routed.labels = placeLabels(routed.points, e.labels);
+    let routed: EdgeRoute | undefined;
+    let rerouted = false;
+    if (e.source === e.target) routed = shift(e, ds.x, ds.y);
+    else if (!bends?.length && ds.x === dt.x && ds.y === dt.y) {
+      const cand = shift(e, ds.x, ds.y);
+      if (!crossesBox(cand.points, classes, s, t)) routed = cand;
     }
-    return fixGlyph(routed, r, byName);
+    if (!routed) {
+      const via = bends ? (e.reversed ? [...bends].reverse() : bends).map(([x, y]) => ({ x, y })) : [];
+      const points = routeAround(s, t, classes, via, used) ?? routeThrough(s, t, via);
+      routed = { ...e, points };
+      rerouted = true;
+    }
+    routed = fixGlyph(routed, relByKey.get(e.key)!, byName);
+    const labels = routed.labels.map((l) => {
+      const hit = classes.some((c) => rectsOverlap(l, c));
+      const out = rerouted || hit ? placeLabel(routed!.points, l, classes, taken) : l;
+      taken.push(out);
+      return out;
+    });
+    return { ...routed, labels };
   });
 
   // Drawing area: everything we know about, plus the margin.
@@ -511,25 +548,99 @@ function dedupe(pts: Point[]): Point[] {
   return out;
 }
 
-const len = (pts: Point[], i: number) => Math.abs(pts[i]!.x - pts[i + 1]!.x) + Math.abs(pts[i]!.y - pts[i + 1]!.y);
 
-/** Puts labels next to the ends and in the middle of the longest segment of a rerouted edge. */
-function placeLabels(points: Point[], labels: EdgeLabel[]): EdgeLabel[] {
-  const at = (l: EdgeLabel, x: number, y: number) => ({ ...l, x: round(x), y: round(y) });
-  const near = (p: Point, q: Point, l: EdgeLabel) => {
-    if (p.x === q.x) return at(l, p.x + 4, q.y > p.y ? p.y + 4 : p.y - 4 - l.height);
-    return at(l, q.x > p.x ? p.x + 4 : p.x - 4 - l.width, p.y - 4 - l.height);
-  };
-  let best = 0;
-  for (let i = 1; i < points.length - 1; i++) if (len(points, i) > len(points, best)) best = i;
-  const a = points[best]!;
-  const b = points[Math.min(best + 1, points.length - 1)]!;
+const SPOT_GAP = 44;
+const SPOT_STEP = 10;
+
+/** Free spot closest to (ix, iy): rings of growing radius, ties by smaller y then x. */
+function freeSpot(c: ClassBox, ix: number, iy: number, obstacles: ClassBox[]): Point {
+  const ok = (x: number, y: number) => !obstacles.some((o) => overlaps({ ...c, x, y }, o, SPOT_GAP));
+  const sx = Math.round(ix / SPOT_STEP) * SPOT_STEP;
+  const sy = Math.round(iy / SPOT_STEP) * SPOT_STEP;
+  if (ok(ix, iy)) return { x: ix, y: iy };
+  for (let r = SPOT_STEP; r < 20000; r += SPOT_STEP) {
+    let best: Point | undefined;
+    let bestD = Infinity;
+    const tryAt = (x: number, y: number) => {
+      const d = (x - ix) ** 2 + (y - iy) ** 2;
+      if (d < bestD || (d === bestD && best && (y < best.y || (y === best.y && x < best.x)))) {
+        if (ok(x, y)) { best = { x, y }; bestD = d; }
+      }
+    };
+    for (let k = -r; k <= r; k += SPOT_STEP) {
+      tryAt(sx + k, sy - r);
+      tryAt(sx + k, sy + r);
+      tryAt(sx - r, sy + k);
+      tryAt(sx + r, sy + k);
+    }
+    if (best) return best;
+  }
+  return { x: ix, y: iy };
+}
+
+/** True when a segment of `points` passes through a class other than `a` and `b`. */
+function crossesBox(points: Point[], boxes: ClassBox[], a: ClassBox, b: ClassBox): boolean {
+  for (let i = 1; i < points.length; i++)
+    for (const c of boxes) if (c !== a && c !== b && segHitsBox(points[i - 1]!, points[i]!, c)) return true;
+  return false;
+}
+
+/** Candidate top-left corners for a label next to the edge, best first. */
+function labelCandidates(points: Point[], l: EdgeLabel): Point[] {
+  const out: Point[] = [];
   const n = points.length;
-  return labels.map((l) => {
-    if (l.kind === "source-end") return near(points[0]!, points[1]!, l);
-    if (l.kind === "target-end") return near(points[n - 1]!, points[n - 2]!, l);
-    const mx = (a.x + b.x) / 2;
-    const my = (a.y + b.y) / 2;
-    return a.x === b.x ? at(l, mx + 4, my - l.height / 2) : at(l, mx - l.width / 2, my - l.height - 2);
-  });
+  if (n < 2) return [{ x: l.x, y: l.y }];
+  if (l.kind === "source-end" || l.kind === "target-end") {
+    const src = l.kind === "source-end";
+    const p = src ? points[0]! : points[n - 1]!;
+    const q = src ? points[1]! : points[n - 2]!;
+    const dx = Math.sign(q.x - p.x);
+    const dy = Math.sign(q.y - p.y);
+    const L = Math.abs(q.x - p.x) + Math.abs(q.y - p.y);
+    for (const off of [4, 28, 52, 76]) {
+      for (const t of [4, 20, 36, 52, 68]) {
+        if (t > Math.max(L, 4)) break;
+        if (p.x === q.x) {
+          const y = dy > 0 ? p.y + t : p.y - t - l.height;
+          out.push({ x: p.x + off, y }, { x: p.x - off - l.width, y });
+        } else {
+          const x = dx > 0 ? p.x + t : p.x - t - l.width;
+          out.push({ x, y: p.y - off - l.height }, { x, y: p.y + off });
+        }
+      }
+    }
+    return out;
+  }
+  const segs = points
+    .slice(1)
+    .map((q, i) => ({ a: points[i]!, b: q, len: Math.abs(q.x - points[i]!.x) + Math.abs(q.y - points[i]!.y), i }))
+    .sort((u, v) => v.len - u.len || u.i - v.i);
+  for (const s of segs) {
+    const mx = (s.a.x + s.b.x) / 2;
+    const my = (s.a.y + s.b.y) / 2;
+    for (const off of [2, 26, 50, 74, 98]) {
+      for (const f of [0, -0.25, 0.25, -0.5, 0.5]) {
+        if (s.a.x === s.b.x) {
+          const y = my - l.height / 2 + f * s.len;
+          out.push({ x: mx + off, y }, { x: mx - off - l.width, y });
+        } else {
+          const x = mx - l.width / 2 + f * s.len;
+          out.push({ x, y: my - l.height - off }, { x, y: my + off });
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/** First candidate that clears every class and the labels already placed; else one that clears the classes. */
+function placeLabel(points: Point[], l: EdgeLabel, boxes: ClassBox[], taken: EdgeLabel[]): EdgeLabel {
+  const cands = labelCandidates(points, l).map((p) => ({ ...l, x: round(p.x), y: round(p.y) }));
+  const clear = (c: EdgeLabel) => !boxes.some((b) => rectsOverlap(c, b));
+  return (
+    cands.find((c) => clear(c) && !taken.some((t) => rectsOverlap(c, t))) ??
+    cands.find(clear) ??
+    cands[0] ??
+    l
+  );
 }

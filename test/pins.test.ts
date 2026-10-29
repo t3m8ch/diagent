@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { layoutDiagram, parsePins, type DiagramLayout } from "../src/layout.js";
 import { parseModel } from "../src/model.js";
+import { rectsOverlap, segHitsBox } from "../src/route.js";
 import { layoutText, renderSvg } from "../src/render.js";
 
 const kolobok = readFileSync(new URL("../examples/kolobok.cd.yaml", import.meta.url), "utf8");
@@ -130,4 +131,36 @@ ${bends}`;
     const { model } = parseModel(kolobok);
     expect(await layoutDiagram(model, { classes: {}, relations: {} })).toEqual(await layoutDiagram(model));
   });
+});
+
+describe("pinned layout invariants", () => {
+  const sets: Record<string, string> = {
+    "3 pins": PINNED,
+    "5 pins": `  classes:
+    Колобок: { x: 100, y: 900 }
+    Лиса: { x: 900, y: 100 }
+    Старуха: { x: 500, y: 500 }
+    Зверь: { x: 100, y: 100 }
+    Место: { x: 900, y: 1200 }
+`,
+  };
+  for (const [name, layout] of Object.entries(sets)) {
+    it(`no edge or label crosses a foreign class (${name})`, async () => {
+      const l = await layoutText(withLayout(layout));
+      noOverlap(l);
+      for (const e of l.edges) {
+        for (let i = 1; i < e.points.length; i++) {
+          const a = e.points[i - 1]!;
+          const b = e.points[i]!;
+          expect(a.x === b.x || a.y === b.y, `${e.key} is orthogonal`).toBe(true);
+          for (const c of l.classes) {
+            if (c.name === e.source || c.name === e.target) continue;
+            expect(segHitsBox(a, b, c), `${e.key} crosses ${c.name}`).toBe(false);
+          }
+        }
+        for (const lab of e.labels)
+          for (const c of l.classes) expect(rectsOverlap(lab, c), `label "${lab.text}" of ${e.key} on ${c.name}`).toBe(false);
+      }
+    });
+  }
 });
