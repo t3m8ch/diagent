@@ -1,11 +1,12 @@
 ---
-id: da-rpc9t
+id: da-9
 status: open
 deps: []
 links: []
 created: 2026-10-29T08:16:26Z
 type: task
 priority: 2
+aliases: [rpc9t]
 parent: da-1
 tags: [ready-for-agent]
 ---
