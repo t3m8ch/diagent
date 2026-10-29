@@ -3,6 +3,19 @@ import type { RelationRoute, Point } from "./layout.js";
 
 export type Bend = [number, number];
 
+export const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+
+/** A well-formed `[x, y]` from untrusted data, rounded to whole pixels; undefined otherwise. */
+export function toBend(v: unknown): Bend | undefined {
+  return Array.isArray(v) && v.length === 2 && isNum(v[0]) && isNum(v[1]) ? [Math.round(v[0]), Math.round(v[1])] : undefined;
+}
+
+/** A well-formed `{x, y}` from untrusted data, rounded to whole pixels; undefined otherwise. */
+export function toPosition(v: unknown): { x: number; y: number } | undefined {
+  const p = v as { x?: unknown; y?: unknown } | null | undefined;
+  return isNum(p?.x) && isNum(p?.y) ? { x: Math.round(p.x), y: Math.round(p.y) } : undefined;
+}
+
 /** The route polyline in file order (first end -> second end), the order `bends` are stored in. */
 export const filePoints = (e: RelationRoute): Point[] => (e.reversed ? [...e.points].reverse() : e.points);
 

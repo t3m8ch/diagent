@@ -12,6 +12,7 @@ import { existsSync, readFileSync, renameSync, watch, writeFileSync } from "node
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { toBend, toPosition, type Bend } from "./bends.js";
 import { check, type Diagnostic } from "./check.js";
 import { applyActions, type LayoutAction } from "./save.js";
 
@@ -77,35 +78,28 @@ async function clientBundle(): Promise<string> {
   return r.outputFiles[0]!.text;
 }
 
-const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
-
 /** Validates untrusted JSON into actions; undefined if anything is off. */
 export function parseActions(body: unknown): LayoutAction[] | undefined {
   const list = (body as any)?.actions;
   if (!Array.isArray(list)) return undefined;
   const out: LayoutAction[] = [];
   for (const a of list) {
-    if (a?.type === "pinClass" && typeof a.name === "string" && isNum(a.x) && isNum(a.y))
-      out.push({ type: "pinClass", name: a.name, x: Math.round(a.x), y: Math.round(a.y) });
+    const pos = toPosition(a);
+    if (a?.type === "pinClass" && typeof a.name === "string" && pos) out.push({ type: "pinClass", name: a.name, ...pos });
     else if (a?.type === "unpinClass" && typeof a.name === "string") out.push({ type: "unpinClass", name: a.name });
     else if (a?.type === "unpinAll") out.push({ type: "unpinAll" });
-    else if (
-      a?.type === "pinAll" &&
-      a.classes && typeof a.classes === "object" && !Array.isArray(a.classes) &&
-      Object.values(a.classes).every((p: any) => isNum(p?.x) && isNum(p?.y))
-    )
-      out.push({
-        type: "pinAll",
-        classes: Object.fromEntries(Object.entries<any>(a.classes).map(([n, p]) => [n, { x: Math.round(p.x), y: Math.round(p.y) }])),
-      });
-    else if (
-      a?.type === "setBends" &&
-      typeof a.key === "string" &&
-      (a.bends === null ||
-        (Array.isArray(a.bends) && a.bends.every((b: unknown) => Array.isArray(b) && b.length === 2 && isNum(b[0]) && isNum(b[1]))))
-    )
-      out.push({ type: "setBends", key: a.key, bends: a.bends === null ? null : a.bends.map((b: number[]) => [Math.round(b[0]!), Math.round(b[1]!)]) });
-    else return undefined;
+    else if (a?.type === "pinAll" && a.classes && typeof a.classes === "object" && !Array.isArray(a.classes)) {
+      const entries = Object.entries<unknown>(a.classes).map(([n, p]) => [n, toPosition(p)] as const);
+      if (!entries.every(([, p]) => p)) return undefined;
+      out.push({ type: "pinAll", classes: Object.fromEntries(entries) as Record<string, { x: number; y: number }> });
+    } else if (a?.type === "setBends" && typeof a.key === "string") {
+      if (a.bends === null) out.push({ type: "setBends", key: a.key, bends: null });
+      else if (Array.isArray(a.bends)) {
+        const bends = a.bends.map(toBend);
+        if (!bends.every((b: Bend | undefined) => b)) return undefined;
+        out.push({ type: "setBends", key: a.key, bends: bends as Bend[] });
+      } else return undefined;
+    } else return undefined;
   }
   return out;
 }

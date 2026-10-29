@@ -6,6 +6,7 @@
  */
 import ElkModule from "elkjs/lib/elk.bundled.js";
 import { rectsOverlap, routeAround, segHitsBox } from "./route.js";
+import { toBend, toPosition, type Bend } from "./bends.js";
 import { KINDS, type Marker } from "./kinds.js";
 import type { ClassModel, Model, Operation, Attribute, Relation, Visibility } from "./model.js";
 
@@ -297,22 +298,21 @@ export interface FileLayout {
   relations?: Record<string, { bends?: [number, number][] }>;
 }
 
-const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
-
 /** Cleans the raw `layout` object from `parseModel` into `FileLayout`, keeping only entries that name something in the model. */
 export function parseFileLayout(raw: unknown, model: Model): FileLayout {
   const fileLayout: FileLayout = { classes: {}, relations: {} };
   const o = (raw ?? {}) as Record<string, any>;
   const names = new Set(model.classes.map((c) => c.name));
   const keys = new Set(model.relations.map((r) => r.key));
-  for (const [name, p] of Object.entries(o.classes ?? {}))
-    if (names.has(name) && isNum((p as any)?.x) && isNum((p as any)?.y))
-      fileLayout.classes![name] = { x: Math.round((p as any).x), y: Math.round((p as any).y) };
+  for (const [name, p] of Object.entries(o.classes ?? {})) {
+    const pos = toPosition(p);
+    if (names.has(name) && pos) fileLayout.classes![name] = pos;
+  }
   for (const [key, r] of Object.entries(o.relations ?? {})) {
     const bends = (r as any)?.bends;
     if (keys.has(key) && Array.isArray(bends)) {
-      const good = bends.filter((b: unknown) => Array.isArray(b) && isNum(b[0]) && isNum(b[1]));
-      if (good.length > 0) fileLayout.relations![key] = { bends: good.map((b: number[]) => [Math.round(b[0]!), Math.round(b[1]!)]) };
+      const good = bends.map(toBend).filter((b): b is Bend => b !== undefined);
+      if (good.length > 0) fileLayout.relations![key] = { bends: good };
     }
   }
   return fileLayout;
