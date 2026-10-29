@@ -286,7 +286,7 @@ export async function layoutDiagram(model: Model, pins?: Pins): Promise<DiagramL
     };
   });
 
-  const auto = { width: round(result.width ?? 0), height: round(result.height ?? 0), classes, edges: routes };
+  const auto = fitArea(settleLabels({ width: round(result.width ?? 0), height: round(result.height ?? 0), classes, edges: routes }), false);
   const hasPins = pins && (Object.keys(pins.classes ?? {}).length > 0 || Object.keys(pins.relations ?? {}).length > 0);
   return hasPins ? applyPins(auto, model, pins) : auto;
 }
@@ -429,7 +429,12 @@ export function applyPins(auto: DiagramLayout, model: Model, pins: Pins): Diagra
     return { ...routed, labels };
   });
 
-  // Drawing area: everything we know about, plus the margin.
+  return fitArea(settleLabels({ width: 0, height: 0, classes, edges }), true);
+}
+
+/** Drawing area: everything we know about, plus the margin. */
+function fitArea(layout: DiagramLayout, always: boolean): DiagramLayout {
+  const { classes, edges } = layout;
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   const see = (x: number, y: number) => {
     minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
@@ -442,6 +447,8 @@ export function applyPins(auto: DiagramLayout, model: Model, pins: Pins): Diagra
   if (!isFinite(minX)) return { width: 2 * MARGIN, height: 2 * MARGIN, classes, edges };
   const originX = minX - MARGIN;
   const originY = minY - MARGIN;
+  if (!always && originX >= (layout.originX ?? 0) && originY >= (layout.originY ?? 0) && maxX + MARGIN <= (layout.originX ?? 0) + layout.width && maxY + MARGIN <= (layout.originY ?? 0) + layout.height)
+    return layout;
   return { originX, originY, width: maxX + MARGIN - originX, height: maxY + MARGIN - originY, classes, edges };
 }
 
@@ -585,8 +592,34 @@ function crossesBox(points: Point[], boxes: ClassBox[], a: ClassBox, b: ClassBox
   return false;
 }
 
-/** Candidate top-left corners for a label next to the edge, best first. */
+/** Candidate top-left corners for a label next to the edge, best first; a ring search around the anchor comes last. */
 function labelCandidates(points: Point[], l: EdgeLabel): Point[] {
+  const out = nearCandidates(points, l);
+  const anchor = anchorOf(points, l);
+  for (let r = 8; r <= 200; r += 8)
+    for (let k = -r; k <= r; k += 8) {
+      out.push({ x: anchor.x + k, y: anchor.y - r }, { x: anchor.x + k, y: anchor.y + r });
+      if (Math.abs(k) !== r) out.push({ x: anchor.x - r, y: anchor.y + k }, { x: anchor.x + r, y: anchor.y + k });
+    }
+  return out;
+}
+
+/** The point a label belongs to: the end of the route for end labels, the middle of the longest segment otherwise. */
+function anchorOf(points: Point[], l: EdgeLabel): Point {
+  const n = points.length;
+  if (n < 2) return { x: l.x, y: l.y };
+  if (l.kind === "source-end") return points[0]!;
+  if (l.kind === "target-end") return points[n - 1]!;
+  let best = 0;
+  let bestLen = -1;
+  for (let i = 1; i < n; i++) {
+    const len = Math.abs(points[i]!.x - points[i - 1]!.x) + Math.abs(points[i]!.y - points[i - 1]!.y);
+    if (len > bestLen) { best = i; bestLen = len; }
+  }
+  return { x: (points[best]!.x + points[best - 1]!.x) / 2 - l.width / 2, y: (points[best]!.y + points[best - 1]!.y) / 2 - l.height / 2 };
+}
+
+function nearCandidates(points: Point[], l: EdgeLabel): Point[] {
   const out: Point[] = [];
   const n = points.length;
   if (n < 2) return [{ x: l.x, y: l.y }];
@@ -597,8 +630,8 @@ function labelCandidates(points: Point[], l: EdgeLabel): Point[] {
     const dx = Math.sign(q.x - p.x);
     const dy = Math.sign(q.y - p.y);
     const L = Math.abs(q.x - p.x) + Math.abs(q.y - p.y);
-    for (const off of [4, 28, 52, 76]) {
-      for (const t of [4, 20, 36, 52, 68]) {
+    for (const off of [4, 28, 52, 76, 100, 124]) {
+      for (const t of [4, 20, 36, 52, 68, 84, 100, 116]) {
         if (t > Math.max(L, 4)) break;
         if (p.x === q.x) {
           const y = dy > 0 ? p.y + t : p.y - t - l.height;
@@ -618,7 +651,7 @@ function labelCandidates(points: Point[], l: EdgeLabel): Point[] {
   for (const s of segs) {
     const mx = (s.a.x + s.b.x) / 2;
     const my = (s.a.y + s.b.y) / 2;
-    for (const off of [2, 26, 50, 74, 98]) {
+    for (const off of [2, 26, 50, 74, 98, 122, 146]) {
       for (const f of [0, -0.25, 0.25, -0.5, 0.5]) {
         if (s.a.x === s.b.x) {
           const y = my - l.height / 2 + f * s.len;
@@ -631,6 +664,41 @@ function labelCandidates(points: Point[], l: EdgeLabel): Point[] {
     }
   }
   return out;
+}
+
+type Seg = [Point, Point];
+
+/**
+ * Last step of every layout: moves each label that sits on a class, on a line of any relation
+ * or on another label to the first free candidate spot next to its own relation. Labels that
+ * are fine stay where they are. Pure.
+ */
+function settleLabels(layout: DiagramLayout): DiagramLayout {
+  const { classes, edges } = layout;
+  const segs: Seg[] = edges.flatMap((e) => e.points.slice(1).map((p, i): Seg => [e.points[i]!, p]));
+  const onLine = (l: EdgeLabel) => segs.some(([a, b]) => segHitsBox(a, b, l));
+  const onClass = (l: EdgeLabel) => classes.some((c) => rectsOverlap(l, c));
+  const hard = (l: EdgeLabel) => !onClass(l) && !onLine(l);
+
+  const taken: EdgeLabel[] = [];
+  const kept = edges.map((e) => e.labels.map((l) => hard(l) && !taken.some((t) => rectsOverlap(l, t)) && (taken.push(l), true)));
+  const out = edges.map((e, i) => {
+    let changed = false;
+    const labels = e.labels.map((l, j) => {
+      if (kept[i]![j]) return l;
+      const cands = labelCandidates(e.points, l).map((p) => ({ ...l, x: round(p.x), y: round(p.y) }));
+      const best =
+        cands.find((c) => hard(c) && !taken.some((t) => rectsOverlap(c, t))) ??
+        cands.find(hard) ??
+        cands.find((c) => !onClass(c)) ??
+        l;
+      taken.push(best);
+      changed = true;
+      return best;
+    });
+    return changed ? { ...e, labels } : e;
+  });
+  return { ...layout, edges: out };
 }
 
 /** First candidate that clears every class and the labels already placed; else one that clears the classes. */

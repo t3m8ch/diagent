@@ -4,6 +4,7 @@ import { layoutDiagram, parsePins, type DiagramLayout } from "../src/layout.js";
 import { parseModel } from "../src/model.js";
 import { rectsOverlap, segHitsBox } from "../src/route.js";
 import { layoutText, renderSvg } from "../src/render.js";
+import { labelProblems } from "./label-clearance.js";
 
 const kolobok = readFileSync(new URL("../examples/kolobok.cd.yaml", import.meta.url), "utf8");
 
@@ -145,6 +146,10 @@ describe("pinned layout invariants", () => {
 `,
   };
   for (const [name, layout] of Object.entries(sets)) {
+    it(`labels stay off lines and off each other (${name})`, async () => {
+      expect(labelProblems(await layoutText(withLayout(layout)))).toEqual([]);
+    });
+
     it(`no edge or label crosses a foreign class (${name})`, async () => {
       const l = await layoutText(withLayout(layout));
       noOverlap(l);

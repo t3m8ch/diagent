@@ -2,8 +2,10 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { drawSvg } from "../src/draw.js";
 import { layoutText, renderSvg } from "../src/render.js";
+import { labelProblems } from "./label-clearance.js";
 
 const kolobok = readFileSync(new URL("../examples/kolobok.cd.yaml", import.meta.url), "utf8");
+const tale = readFileSync(new URL("./fixtures/tale.cd.yaml", import.meta.url), "utf8");
 
 const small: Record<string, string> = {
   generalization: "classes:\n  Зверь: { abstract: true }\n  Лиса: {}\nrelations:\n  generalization:\n    - { child: Лиса, parent: Зверь }\n",
@@ -102,6 +104,10 @@ describe("layoutText", () => {
       for (let j = i + 1; j < labels.length; j++)
         expect(overlap(labels[i]!, labels[j]!), `${labels[i]!.text} / ${labels[j]!.text}`).toBe(false);
     }
+  });
+
+  it("keeps labels off other classes, off every relation line and off each other", async () => {
+    for (const [name, text] of Object.entries({ kolobok, tale })) expect(labelProblems(await layoutText(text)), name).toEqual([]);
   });
 
   it("draws a self-association as a loop", async () => {

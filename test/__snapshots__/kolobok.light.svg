@@ -45,7 +45,7 @@
 <g>
 <polyline points="680,1198 680,1226 507,1226 507,1602 282,1602 282,1665" fill="none" stroke="#000000" stroke-width="1.5"/>
 <polygon points="680,1182 685,1190 680,1198 675,1190" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
-<text x="687" y="1198" font-size="12">0..1</text>
+<text x="644" y="1198" font-size="12">0..1</text>
 <text x="456" y="1439" font-size="12">состав</text>
 <text x="289" y="1657" font-size="12">1..*</text>
 </g>
