@@ -37,7 +37,14 @@ export class History {
 export function inverseOf(actions: LayoutAction[], pins: Pins): LayoutAction[] {
   const inv: LayoutAction[] = [];
   for (const a of [...actions].reverse()) {
-    if (a.type === "pinClass" || a.type === "unpinClass") {
+    if (a.type === "unpinAll") {
+      for (const [name, old] of Object.entries(pins.classes ?? {})) inv.push({ type: "pinClass", name, ...old });
+    } else if (a.type === "pinAll") {
+      for (const name of Object.keys(a.classes)) {
+        const old = pins.classes?.[name];
+        inv.push(old ? { type: "pinClass", name, ...old } : { type: "unpinClass", name });
+      }
+    } else if (a.type === "pinClass" || a.type === "unpinClass") {
       const old = pins.classes?.[a.name];
       inv.push(old ? { type: "pinClass", name: a.name, ...old } : { type: "unpinClass", name: a.name });
     } else {

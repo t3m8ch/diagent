@@ -39,6 +39,7 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); f
 #bar { position: fixed; top: 0; left: 0; right: 0; padding: 6px 12px; display: flex; gap: 16px; align-items: center;
   border-bottom: 1px solid var(--muted); background: var(--bg); z-index: 2; }
 #bar .hint { color: var(--muted); }
+#bar button { font: inherit; }
 #status { margin-left: auto; color: var(--muted); }
 #errors { display: none; margin: 0; padding: 8px 12px; color: var(--err); font-family: ui-monospace, monospace; white-space: pre-wrap;
   border-bottom: 1px solid var(--err); }
@@ -49,7 +50,7 @@ svg { display: block; }
 </style>
 </head>
 <body>
-<div id="bar"><b>diagent</b><span id="file"></span><span class="hint">drag a class to pin it · double-click to unpin · Ctrl+Z / Ctrl+Shift+Z</span><span id="status"></span></div>
+<div id="bar"><b>diagent</b><span id="file"></span><span class="hint">drag a class to pin it · double-click to unpin · click a line to select it, click it again (or drag) to add a bend, drag a bend to move it, double-click a bend to remove it · Ctrl+Z / Ctrl+Shift+Z</span><button id="reset-bends" disabled>Reset bends</button><button id="pin-all">Pin all</button><button id="unpin-all">Unpin all</button><span id="status"></span></div>
 <pre id="errors"></pre>
 <div id="stage"></div>
 <script src="/client.js"></script>
@@ -85,6 +86,16 @@ export function parseActions(body: unknown): LayoutAction[] | undefined {
     if (a?.type === "pinClass" && typeof a.name === "string" && isNum(a.x) && isNum(a.y))
       out.push({ type: "pinClass", name: a.name, x: Math.round(a.x), y: Math.round(a.y) });
     else if (a?.type === "unpinClass" && typeof a.name === "string") out.push({ type: "unpinClass", name: a.name });
+    else if (a?.type === "unpinAll") out.push({ type: "unpinAll" });
+    else if (
+      a?.type === "pinAll" &&
+      a.classes && typeof a.classes === "object" && !Array.isArray(a.classes) &&
+      Object.values(a.classes).every((p: any) => isNum(p?.x) && isNum(p?.y))
+    )
+      out.push({
+        type: "pinAll",
+        classes: Object.fromEntries(Object.entries<any>(a.classes).map(([n, p]) => [n, { x: Math.round(p.x), y: Math.round(p.y) }])),
+      });
     else if (
       a?.type === "setBends" &&
       typeof a.key === "string" &&

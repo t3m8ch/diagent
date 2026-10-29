@@ -10,6 +10,10 @@ import { buildModel } from "./model.js";
 export type LayoutAction =
   | { type: "pinClass"; name: string; x: number; y: number }
   | { type: "unpinClass"; name: string }
+  /** Pins every listed class at the given position ("Pin all": the editor sends the current positions). */
+  | { type: "pinAll"; classes: Record<string, { x: number; y: number }> }
+  /** Clears the class layout; bends are kept. */
+  | { type: "unpinAll" }
   /** `bends: null` removes the entry. */
   | { type: "setBends"; key: string; bends: [number, number][] | null };
 
@@ -24,6 +28,10 @@ function applyOne(doc: Document, a: LayoutAction, names: Set<string>, keys: Set<
     if (names.has(a.name)) doc.setIn(["layout", "classes", a.name], flow(doc, { x: a.x, y: a.y }));
   } else if (a.type === "unpinClass") {
     if (doc.hasIn(["layout", "classes"])) doc.deleteIn(["layout", "classes", a.name]);
+  } else if (a.type === "pinAll") {
+    for (const [name, p] of Object.entries(a.classes)) if (names.has(name)) doc.setIn(["layout", "classes", name], flow(doc, { x: p.x, y: p.y }));
+  } else if (a.type === "unpinAll") {
+    if (doc.hasIn(["layout", "classes"])) doc.deleteIn(["layout", "classes"]);
   } else if (a.bends === null || a.bends.length === 0) {
     if (doc.hasIn(["layout", "relations"])) doc.deleteIn(["layout", "relations", a.key]);
   } else if (keys.has(a.key)) {
