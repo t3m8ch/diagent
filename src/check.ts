@@ -214,9 +214,8 @@ function semanticChecks(data: Obj, add: Add, lineOf: (path: Segment[]) => number
   }
 
   // Relations: references, interface targets, duplicate keys and ids.
-  const relationKeys = new Set<string>();
-  const firstByKey = new Map<string, number>();
-  const ids = new Map<string, number>();
+  // Ids and generated keys share one namespace: both are keys in `layout.relations`.
+  const firstByKey = new Map<string, { line: number; explicit: boolean }>();
   const relations = isObj(data.relations) ? data.relations : {};
   const checkRef = (path: Segment[], value: unknown): value is string => {
     if (typeof value !== "string") return false;
@@ -252,19 +251,21 @@ function semanticChecks(data: Obj, add: Add, lineOf: (path: Segment[]) => number
       }
 
       const id = typeof rel.id === "string" ? rel.id : undefined;
-      if (id !== undefined) {
-        const prev = ids.get(id);
-        if (prev !== undefined) add("error", [...base, "id"], `duplicate id "${id}" (first defined at line ${prev})`);
-        else ids.set(id, lineOf([...base, "id"]));
-        relationKeys.add(id);
-      } else if (ends) {
-        const key = `${kind}:${ends[0]}-${ends[1]}`;
-        const prev = firstByKey.get(key);
-        if (prev !== undefined)
-          add("error", base, `duplicate relation "${key}" (first defined at line ${prev}); give each of them a distinct "id"`);
-        else firstByKey.set(key, lineOf(base));
-        relationKeys.add(key);
-      }
+      const key = id ?? (ends ? `${kind}:${ends[0]}-${ends[1]}` : undefined);
+      if (key === undefined) return;
+      const path = id !== undefined ? [...base, "id"] : base;
+      const prev = firstByKey.get(key);
+      if (!prev) firstByKey.set(key, { line: lineOf(path), explicit: id !== undefined });
+      else if (id !== undefined && prev.explicit)
+        add("error", path, `duplicate id "${id}" (first defined at line ${prev.line})`);
+      else if (id === undefined && !prev.explicit)
+        add("error", path, `duplicate relation "${key}" (first defined at line ${prev.line}); give each of them a distinct "id"`);
+      else
+        add(
+          "error",
+          path,
+          `duplicate relation key "${key}" (first defined at line ${prev.line}); an id must not equal the generated key of another relation`,
+        );
     });
   }
 
@@ -276,7 +277,7 @@ function semanticChecks(data: Obj, add: Add, lineOf: (path: Segment[]) => number
         add("warning", ["layout", "classes", name], `orphaned layout entry: no class "${name}" in the model`, "key");
   if (isObj(layout.relations))
     for (const key of Object.keys(layout.relations))
-      if (!relationKeys.has(key))
+      if (!firstByKey.has(key))
         add("warning", ["layout", "relations", key], `orphaned layout entry: no relation "${key}" in the model`, "key");
 }
 

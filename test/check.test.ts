@@ -236,6 +236,46 @@ relations:
     ]);
   });
 
+  it("reports an id that equals the generated key of another relation", () => {
+    const text = `classes:
+  A: {}
+  B: {}
+relations:
+  dependency:
+    - { client: A, supplier: B }
+    - { id: "dependency:A-B", client: B, supplier: A }
+`;
+    expect(errors(text)).toEqual([
+      {
+        severity: "error",
+        path: "relations.dependency[1].id",
+        line: 7,
+        column: 13,
+        message: 'duplicate relation key "dependency:A-B" (first defined at line 6); an id must not equal the generated key of another relation',
+      },
+    ]);
+  });
+
+  it("reports a generated key that equals an earlier relation id", () => {
+    const text = `classes:
+  A: {}
+  B: {}
+relations:
+  dependency:
+    - { id: "dependency:A-B", client: B, supplier: A }
+    - { client: A, supplier: B }
+`;
+    expect(errors(text)).toEqual([
+      {
+        severity: "error",
+        path: "relations.dependency[1]",
+        line: 7,
+        column: 7,
+        message: 'duplicate relation key "dependency:A-B" (first defined at line 6); an id must not equal the generated key of another relation',
+      },
+    ]);
+  });
+
   it("reports several relations between one pair without an id", () => {
     const text = `classes:
   A: {}
