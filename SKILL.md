@@ -7,7 +7,7 @@ description: Draw UML class diagrams. Use when asked to draw, sketch, model or v
 
 A diagram is one `*.cd.yaml` file: the **model** (`classes`, `relations`) that you write, and an optional `layout` that a human owns. The `diagent` CLI validates the file and draws it. In the diagent repo itself run it from the repo root as `pnpm -s dev <args>`; its output starts with one `$ tsx ...` banner line.
 
-`diagent schema` prints the JSON Schema: the source of truth for every key, enum value and relation kind. Run it once before writing; the rules below cover only what the schema cannot say.
+`diagent schema` prints the JSON Schema (the same file ships as `schema/diagent.schema.json` in the package; unknown keys are errors): the source of truth for every key, enum value and relation kind. Run it once before writing; the rules below cover only what the schema cannot say.
 
 ## Format
 

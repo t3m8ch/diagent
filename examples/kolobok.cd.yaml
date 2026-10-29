@@ -1,4 +1,5 @@
 # Диаграмма классов «Колобок». Раскладки нет: её считает автораскладка.
+# yaml-language-server: $schema=../schema/diagent.schema.json
 classes:
   Персонаж:
     abstract: true

@@ -1,6 +1,6 @@
 {
   "name": "diagent",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "UML class diagrams written by agents, laid out by a deterministic engine",
   "type": "module",
   "packageManager": "pnpm@12.15.0",
@@ -9,17 +9,20 @@
   },
   "files": [
     "dist",
-    "examples",
-    "SKILL.md"
+    "schema",
+    "examples/*.cd.yaml",
+    "SKILL.md",
+    "README.md"
   ],
   "engines": {
     "node": ">=20"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json && esbuild src/editor/client.ts --bundle --format=iife --minify --outfile=dist/client.js",
+    "build": "tsc -p tsconfig.build.json && esbuild src/editor/client.ts --bundle --format=iife --minify --outfile=dist/client.js && node scripts/gen-schema.mjs",
     "dev": "tsx src/cli.ts",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepack": "pnpm run build"
   },
   "dependencies": {
     "@resvg/resvg-js": "^2.6.2",
@@ -34,5 +37,25 @@
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5"
-  }
+  },
+  "license": "GPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/t3m8ch/diagent.git"
+  },
+  "homepage": "https://github.com/t3m8ch/diagent#readme",
+  "bugs": {
+    "url": "https://github.com/t3m8ch/diagent/issues"
+  },
+  "keywords": [
+    "uml",
+    "class-diagram",
+    "diagram",
+    "yaml",
+    "cli",
+    "agent",
+    "llm",
+    "png",
+    "svg"
+  ]
 }

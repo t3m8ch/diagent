@@ -1,0 +1,396 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "diagent class diagram",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "classes"
+  ],
+  "properties": {
+    "classes": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^\\p{L}[\\p{L}\\p{N}_]*$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": [
+              "class",
+              "interface",
+              "enum"
+            ],
+            "default": "class"
+          },
+          "abstract": {
+            "type": "boolean"
+          },
+          "stereotype": {
+            "type": "string"
+          },
+          "attributes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "type": {
+                  "type": "string",
+                  "description": "Free text, e.g. \"List<Ингредиент>\"."
+                },
+                "visibility": {
+                  "enum": [
+                    "public",
+                    "private",
+                    "protected",
+                    "package"
+                  ],
+                  "default": "public",
+                  "description": "Written as a word, never as +, -, # or ~."
+                },
+                "static": {
+                  "type": "boolean"
+                },
+                "multiplicity": {
+                  "type": "string",
+                  "description": "Always a string: \"1\", \"0..1\", \"0..*\", \"1..*\", \"*\"."
+                }
+              }
+            }
+          },
+          "operations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "params": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "description": "Parameter name -> type, in order."
+                },
+                "returns": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "enum": [
+                    "public",
+                    "private",
+                    "protected",
+                    "package"
+                  ],
+                  "default": "public",
+                  "description": "Written as a word, never as +, -, # or ~."
+                },
+                "static": {
+                  "type": "boolean"
+                },
+                "abstract": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "literals": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Enumeration literals."
+          }
+        }
+      }
+    },
+    "relations": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "generalization": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "child",
+              "parent"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Optional unique id; needed to tell apart several relations between one pair of classes."
+              },
+              "child": {
+                "type": "string",
+                "description": "Name of a class from `classes`."
+              },
+              "parent": {
+                "type": "string",
+                "description": "Name of a class from `classes`."
+              }
+            }
+          }
+        },
+        "realization": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "implementor",
+              "interface"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Optional unique id; needed to tell apart several relations between one pair of classes."
+              },
+              "implementor": {
+                "type": "string",
+                "description": "Name of a class from `classes`."
+              },
+              "interface": {
+                "type": "string",
+                "description": "Name of a class from `classes`."
+              }
+            }
+          }
+        },
+        "composition": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "whole",
+              "part"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Optional unique id; needed to tell apart several relations between one pair of classes."
+              },
+              "name": {
+                "type": "string"
+              },
+              "whole": {
+                "type": "string",
+                "description": "Name of a class from `classes`."
+              },
+              "part": {
+                "type": "string",
+                "description": "Name of a class from `classes`."
+              },
+              "whole_multiplicity": {
+                "type": "string",
+                "description": "Always a string: \"1\", \"0..1\", \"0..*\", \"1..*\", \"*\"."
+              },
+              "part_multiplicity": {
+                "type": "string",
+                "description": "Always a string: \"1\", \"0..1\", \"0..*\", \"1..*\", \"*\"."
+              }
+            }
+          }
+        },
+        "aggregation": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "whole",
+              "part"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Optional unique id; needed to tell apart several relations between one pair of classes."
+              },
+              "name": {
+                "type": "string"
+              },
+              "whole": {
+                "type": "string",
+                "description": "Name of a class from `classes`."
+              },
+              "part": {
+                "type": "string",
+                "description": "Name of a class from `classes`."
+              },
+              "whole_multiplicity": {
+                "type": "string",
+                "description": "Always a string: \"1\", \"0..1\", \"0..*\", \"1..*\", \"*\"."
+              },
+              "part_multiplicity": {
+                "type": "string",
+                "description": "Always a string: \"1\", \"0..1\", \"0..*\", \"1..*\", \"*\"."
+              }
+            }
+          }
+        },
+        "dependency": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "client",
+              "supplier"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Optional unique id; needed to tell apart several relations between one pair of classes."
+              },
+              "client": {
+                "type": "string",
+                "description": "Name of a class from `classes`."
+              },
+              "supplier": {
+                "type": "string",
+                "description": "Name of a class from `classes`."
+              },
+              "stereotype": {
+                "type": "string",
+                "description": "E.g. \"create\", \"use\"."
+              }
+            }
+          }
+        },
+        "association": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "ends"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Optional unique id; needed to tell apart several relations between one pair of classes."
+              },
+              "name": {
+                "type": "string"
+              },
+              "reading": {
+                "enum": [
+                  "forward",
+                  "backward"
+                ],
+                "description": "Direction of reading: forward = from ends[0] to ends[1]."
+              },
+              "ends": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 2,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "class"
+                  ],
+                  "properties": {
+                    "class": {
+                      "type": "string",
+                      "description": "Name of a class from `classes`."
+                    },
+                    "role": {
+                      "type": "string"
+                    },
+                    "multiplicity": {
+                      "type": "string",
+                      "description": "Always a string: \"1\", \"0..1\", \"0..*\", \"1..*\", \"*\"."
+                    },
+                    "navigable": {
+                      "type": "boolean",
+                      "description": "Draw an open arrowhead at this end."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "layout": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Optional. Positions and bends, edited mostly by a human in the editor.",
+      "properties": {
+        "classes": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^\\p{L}[\\p{L}\\p{N}_]*$"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "x",
+              "y"
+            ],
+            "properties": {
+              "x": {
+                "type": "integer"
+              },
+              "y": {
+                "type": "integer"
+              }
+            },
+            "description": "Top-left corner."
+          }
+        },
+        "relations": {
+          "type": "object",
+          "description": "Key: \"<kind>:<first end>-<second end>\" or the relation `id`.",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "bends"
+            ],
+            "properties": {
+              "bends": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "items": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
