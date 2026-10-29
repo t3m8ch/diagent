@@ -52,7 +52,7 @@ svg { display: block; }
 </style>
 </head>
 <body>
-<div id="bar"><b>diagent</b><span id="file"></span><span class="hint" title="Click a line to select it, click it again (or drag) to add a bend, drag a bend to move it, double-click a bend to remove it. Ctrl+Z / Ctrl+Shift+Z: undo / redo. Wheel or two fingers: move the scene; Ctrl/Cmd + wheel or pinch: zoom; drag empty space, middle button or Space + drag: pan; Shift+1: fit; Ctrl+0: 100%; Ctrl+= / Ctrl+-: zoom step.">Drag to pin · double-click to unpin · click a line to add bends</span><button id="reset-bends" disabled>Reset bends</button><button id="pin-all">Pin all</button><button id="unpin-all">Unpin all</button><span id="zoom" title="Zoom">100%</span><button id="fit" title="Fit diagram (Shift+1)">Fit</button><button id="zoom100" title="100% (Ctrl+0)">100%</button><span id="status"></span></div>
+<div id="bar"><b>diagent</b><span id="file"></span><span class="hint" title="Click a line to select it, click it again (or drag) to add a bend, drag a bend to move it, double-click a bend to remove it. Ctrl+Z / Ctrl+Shift+Z: undo / redo. Wheel or two fingers: move the scene; Ctrl/Cmd + wheel or pinch: zoom; Shift+1: fit; Ctrl+0: 100%; Ctrl+= / Ctrl+-: zoom step.">Drag to pin · double-click to unpin · click a line to add bends</span><button id="reset-bends" disabled>Reset bends</button><button id="pin-all">Pin all</button><button id="unpin-all">Unpin all</button><span id="zoom" title="Zoom">100%</span><button id="fit" title="Fit diagram (Shift+1)">Fit</button><button id="zoom100" title="100% (Ctrl+0)">100%</button><span id="status"></span></div>
 <pre id="errors"></pre>
 <div id="stage"></div>
 <script src="/client.js"></script>

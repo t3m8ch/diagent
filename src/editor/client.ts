@@ -202,41 +202,11 @@ function classAt(e: { clientX: number; clientY: number }): ClassBox | undefined 
 
 const snap = (v: number) => Math.round(v / GRID) * GRID;
 
-let spaceDown = false;
-
-/** Drags the scene with the pointer; `onClick` runs instead when the pointer did not move past the threshold. */
-function startPan(e: PointerEvent, onClick?: () => void) {
-  let last = { x: e.clientX, y: e.clientY };
-  const from = last;
-  let moved = false;
-  stage.style.cursor = "grabbing";
-  const onMove = (m: PointerEvent) => {
-    moved = moved || Math.hypot(m.clientX - from.x, m.clientY - from.y) > DRAG_PX;
-    if (moved && camera) setCamera(cam.panBy(camera, m.clientX - last.x, m.clientY - last.y), false);
-    last = { x: m.clientX, y: m.clientY };
-  };
-  const onUp = () => {
-    window.removeEventListener("pointermove", onMove);
-    window.removeEventListener("pointerup", onUp);
-    window.removeEventListener("pointercancel", onUp);
-    stage.style.cursor = spaceDown ? "grab" : "";
-    if (!moved) onClick?.();
-  };
-  window.addEventListener("pointermove", onMove);
-  window.addEventListener("pointerup", onUp);
-  window.addEventListener("pointercancel", onUp);
-}
-
 stage.addEventListener("pointermove", (e) => {
-  if (!drag) stage.style.cursor = spaceDown || classAt(e) ? "grab" : "";
+  if (!drag) stage.style.cursor = classAt(e) ? "grab" : "";
 });
 
 stage.addEventListener("pointerdown", (e) => {
-  if (e.button === 1 || (e.button === 0 && spaceDown)) {
-    e.preventDefault();
-    startPan(e);
-    return;
-  }
   if (e.button !== 0 || !model || !auto) return;
   const box = classAt(e);
   if (!box) {
@@ -286,14 +256,11 @@ function startBendInteraction(e: PointerEvent) {
   const handle = relation ? bendAt(bendsOf(relation.key), start, 7 * px()) : -1;
   const hit = handle >= 0 ? relation : relationAt(shown.relations, start, 6 * px());
   if (!hit) {
-    // Empty space: a drag pans the scene, a plain click deselects the relation.
-    e.preventDefault();
-    startPan(e, () => {
-      if (selected && shown) {
-        selected = undefined;
-        draw(shown);
-      }
-    });
+    // Empty space deselects the relation; the scene moves only with the wheel or two fingers.
+    if (selected) {
+      selected = undefined;
+      draw(shown);
+    }
     return;
   }
   e.preventDefault();
@@ -400,19 +367,7 @@ $("fit").addEventListener("click", fitDiagram);
 $("zoom100").addEventListener("click", () => camera && setCamera(cam.zoomTo(camera, 1, view()), true));
 new ResizeObserver(() => applyCamera()).observe(stage);
 
-window.addEventListener("keyup", (e) => {
-  if (e.code !== "Space") return;
-  spaceDown = false;
-  stage.style.cursor = "";
-});
-
 window.addEventListener("keydown", (e) => {
-  if (e.code === "Space") {
-    e.preventDefault(); // also keeps a focused toolbar button from firing
-    spaceDown = true;
-    stage.style.cursor = "grab";
-    return;
-  }
   if (e.key === "Escape" && selected && shown) {
     selected = undefined;
     draw(shown);
