@@ -109,9 +109,4 @@ describe("layoutText", () => {
     expect(edge.source).toBe(edge.target);
     expect(edge.points.length).toBeGreaterThanOrEqual(3);
   });
-
-  it("ignores the layout section for now", async () => {
-    const pinned = kolobok + "\nlayout:\n  classes:\n    Колобок: { x: 5, y: 5 }\n";
-    expect(await renderSvg(pinned)).toBe(await renderSvg(kolobok));
-  });
 });

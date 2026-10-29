@@ -74,9 +74,14 @@ export interface EdgeRoute {
   targetMarker: Marker;
   dashed: boolean;
   labels: EdgeLabel[];
+  /** True when `points` run from `ends[1]` to `ends[0]` of the relation (parents/interfaces go on top). */
+  reversed: boolean;
 }
 
 export interface DiagramLayout {
+  /** Top-left of the drawing area; 0,0 unless pinned classes sit at negative coordinates. */
+  originX?: number;
+  originY?: number;
   width: number;
   height: number;
   classes: ClassBox[];
@@ -186,8 +191,12 @@ const ELK = ElkModule as unknown as new () => { layout(graph: any): Promise<any>
 const elk = new ELK();
 const round = (n: number) => Math.round(n);
 
-/** Computes class boxes, edge routes and label positions. Ignores `layout` of the file (da-3). */
-export async function layoutDiagram(model: Model): Promise<DiagramLayout> {
+/**
+ * Computes class boxes, edge routes and label positions. With `pins` (the file's `layout`
+ * section, see `parsePins`) pinned classes stand exactly there, the rest is arranged around
+ * them, and relations with `bends` pass through those points (see `applyPins`).
+ */
+export async function layoutDiagram(model: Model, pins?: Pins): Promise<DiagramLayout> {
   const boxes = new Map(model.classes.map((c) => [c.name, measureClass(c)]));
 
   const specs: EdgeSpec[] = model.relations.map((relation) => ({
@@ -272,10 +281,13 @@ export async function layoutDiagram(model: Model): Promise<DiagramLayout> {
       targetMarker,
       dashed: r.kind === "dependency" || r.kind === "realization",
       labels,
+      reversed: swap,
     };
   });
 
-  return { width: round(result.width ?? 0), height: round(result.height ?? 0), classes, edges: routes };
+  const auto = { width: round(result.width ?? 0), height: round(result.height ?? 0), classes, edges: routes };
+  const hasPins = pins && (Object.keys(pins.classes ?? {}).length > 0 || Object.keys(pins.relations ?? {}).length > 0);
+  return hasPins ? applyPins(auto, model, pins) : auto;
 }
 
 /** Association name with a reading-direction glyph; the glyph is chosen after layout. */
@@ -285,4 +297,239 @@ function centerText(r: Relation, g: string): string {
   if (r.kind === "dependency") return r.stereotype ? `«${r.stereotype}»` : "";
   if (r.kind === "association" && r.reading !== undefined) return withGlyph(r.name!, g);
   return r.name ?? "";
+}
+
+// ---- pinned classes and bends (da-4) --------------------------------------
+/** The file's `layout` section. Orphaned or malformed entries are ignored (`check` warns about them). */
+export interface Pins {
+  classes?: Record<string, { x: number; y: number }>;
+  /** `bends` run from the first to the second end of the relation, as in the file. */
+  relations?: Record<string, { bends?: [number, number][] }>;
+}
+
+const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+
+/** Cleans the raw `layout` object from `parseModel` into `Pins`, keeping only entries that name something in the model. */
+export function parsePins(raw: unknown, model: Model): Pins {
+  const pins: Pins = { classes: {}, relations: {} };
+  const o = (raw ?? {}) as Record<string, any>;
+  const names = new Set(model.classes.map((c) => c.name));
+  const keys = new Set(model.relations.map((r) => r.key));
+  for (const [name, p] of Object.entries(o.classes ?? {}))
+    if (names.has(name) && isNum((p as any)?.x) && isNum((p as any)?.y))
+      pins.classes![name] = { x: Math.round((p as any).x), y: Math.round((p as any).y) };
+  for (const [key, r] of Object.entries(o.relations ?? {})) {
+    const bends = (r as any)?.bends;
+    if (keys.has(key) && Array.isArray(bends)) {
+      const good = bends.filter((b: unknown) => Array.isArray(b) && isNum(b[0]) && isNum(b[1]));
+      if (good.length > 0) pins.relations![key] = { bends: good.map((b: number[]) => [Math.round(b[0]!), Math.round(b[1]!)]) };
+    }
+  }
+  return pins;
+}
+
+const GAP = 20;
+const overlaps = (a: ClassBox, b: ClassBox, gap = GAP) =>
+  a.x < b.x + b.width + gap && b.x < a.x + a.width + gap && a.y < b.y + b.height + gap && b.y < a.y + a.height + gap;
+
+/**
+ * Puts pinned classes at their coordinates and arranges the rest around them. Pure and
+ * deterministic; `auto` is an unpinned layout (not modified).
+ *
+ * 1. Unpinned classes keep their automatic arrangement, shifted by the offset of the first
+ *    pinned class (automatic -> pinned), so the picture stays in one piece.
+ * 2. Unpinned classes that then overlap a settled class (with a 20 px gap) are moved right or
+ *    down, whichever is the smaller step, in (y, x) order. Coordinates only grow, so it ends.
+ * 3. An edge whose two classes moved by the same offset and has no bends is the automatic
+ *    route, translated. Every other edge is routed orthogonally here: through its bends, or
+ *    by a straight/Z route between the two boxes.
+ */
+export function applyPins(auto: DiagramLayout, model: Model, pins: Pins): DiagramLayout {
+  const pinned = pins.classes ?? {};
+  const autoPos = new Map(auto.classes.map((c) => [c.name, { x: c.x, y: c.y }]));
+  const first = auto.classes.find((c) => pinned[c.name]);
+  const base = first ? { x: pinned[first.name]!.x - first.x, y: pinned[first.name]!.y - first.y } : { x: 0, y: 0 };
+
+  const classes: ClassBox[] = auto.classes.map((c) => {
+    const p = pinned[c.name];
+    return p ? { ...c, x: p.x, y: p.y } : { ...c, x: c.x + base.x, y: c.y + base.y };
+  });
+  const settled = classes.filter((c) => pinned[c.name]);
+  const free = classes.filter((c) => !pinned[c.name]).sort((a, b) => a.y - b.y || a.x - b.x || (a.name < b.name ? -1 : 1));
+  for (const c of free) {
+    for (;;) {
+      const hit = settled.find((o) => overlaps(c, o));
+      if (!hit) break;
+      const right = hit.x + hit.width + GAP - c.x;
+      const down = hit.y + hit.height + GAP - c.y;
+      if (right <= down) c.x += right;
+      else c.y += down;
+    }
+    settled.push(c);
+  }
+  const byName = new Map(classes.map((c) => [c.name, c]));
+  const relByKey = new Map(model.relations.map((r) => [r.key, r]));
+
+  const edges: EdgeRoute[] = auto.edges.map((e) => {
+    const s = byName.get(e.source)!;
+    const t = byName.get(e.target)!;
+    const sa = autoPos.get(e.source)!;
+    const ta = autoPos.get(e.target)!;
+    const ds = { x: s.x - sa.x, y: s.y - sa.y };
+    const dt = { x: t.x - ta.x, y: t.y - ta.y };
+    const bends = pins.relations?.[e.key]?.bends;
+    const r = relByKey.get(e.key)!;
+    let routed: EdgeRoute;
+    if (e.source === e.target) {
+      routed = shift(e, ds.x, ds.y);
+    } else if (!bends?.length && ds.x === dt.x && ds.y === dt.y) {
+      routed = shift(e, ds.x, ds.y);
+    } else {
+      const via = bends ? (e.reversed ? [...bends].reverse() : bends).map(([x, y]) => ({ x, y })) : [];
+      routed = { ...e, points: routeThrough(s, t, via) };
+      routed.labels = placeLabels(routed.points, e.labels);
+    }
+    return fixGlyph(routed, r, byName);
+  });
+
+  // Drawing area: everything we know about, plus the margin.
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  const see = (x: number, y: number) => {
+    minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
+  };
+  for (const c of classes) { see(c.x, c.y); see(c.x + c.width, c.y + c.height); }
+  for (const e of edges) {
+    for (const p of e.points) see(p.x, p.y);
+    for (const l of e.labels) { see(l.x, l.y); see(l.x + l.width, l.y + l.height); }
+  }
+  if (!isFinite(minX)) return { width: 2 * MARGIN, height: 2 * MARGIN, classes, edges };
+  const originX = minX - MARGIN;
+  const originY = minY - MARGIN;
+  return { originX, originY, width: maxX + MARGIN - originX, height: maxY + MARGIN - originY, classes, edges };
+}
+
+function shift(e: EdgeRoute, dx: number, dy: number): EdgeRoute {
+  if (dx === 0 && dy === 0) return e;
+  return {
+    ...e,
+    points: e.points.map((p) => ({ x: p.x + dx, y: p.y + dy })),
+    labels: e.labels.map((l) => ({ ...l, x: l.x + dx, y: l.y + dy })),
+  };
+}
+
+/** Reading-direction glyph depends on where the boxes ended up. */
+function fixGlyph(e: EdgeRoute, r: Relation, byName: Map<string, ClassBox>): EdgeRoute {
+  if (r.kind !== "association" || r.reading === undefined) return e;
+  const from = byName.get(r.ends[r.reading === 1 ? 0 : 1].class)!;
+  const to = byName.get(r.ends[r.reading].class)!;
+  const g = glyph(to.x + to.width / 2 - (from.x + from.width / 2), to.y + to.height / 2 - (from.y + from.height / 2));
+  return { ...e, labels: e.labels.map((l) => (l.kind === "name" ? { ...l, text: withGlyph(r.name!, g) } : l)) };
+}
+
+const within = (v: number, lo: number, hi: number) => v > lo && v < hi;
+
+/** Orthogonal polyline from box `s` to box `t` through `via` (consecutive points not on one axis get an elbow). */
+function routeThrough(s: ClassBox, t: ClassBox, via: Point[]): Point[] {
+  if (via.length === 0) return autoRoute(s, t);
+  const start = attach(s, via[0]!);
+  const end = attach(t, via[via.length - 1]!);
+  const pts: Point[] = [start.p];
+  // `vertical`: the last segment ran vertically, so the next elbow turns horizontally first.
+  let vertical = !start.vertical; // the first elbow keeps the exit direction
+  const go = (q: Point) => {
+    const cur = pts[pts.length - 1]!;
+    if (cur.x !== q.x && cur.y !== q.y) {
+      pts.push(vertical ? { x: q.x, y: cur.y } : { x: cur.x, y: q.y });
+      vertical = !vertical;
+    }
+    if (cur.x !== q.x || cur.y !== q.y) {
+      pts.push(q);
+      vertical = cur.x === q.x;
+    }
+  };
+  for (const q of via) go(q);
+  const last = pts[pts.length - 1]!;
+  if (last.x !== end.p.x && last.y !== end.p.y) {
+    pts.push(end.vertical ? { x: end.p.x, y: last.y } : { x: last.x, y: end.p.y });
+  }
+  pts.push(end.p);
+  return dedupe(pts);
+}
+
+/** Point on the border of `b` facing `toward`; `vertical` says the segment leaving it is vertical. */
+function attach(b: ClassBox, toward: Point): { p: Point; vertical: boolean } {
+  if (within(toward.x, b.x, b.x + b.width) && (toward.y <= b.y || toward.y >= b.y + b.height))
+    return { p: { x: toward.x, y: toward.y < b.y ? b.y : b.y + b.height }, vertical: true };
+  if (within(toward.y, b.y, b.y + b.height) && (toward.x <= b.x || toward.x >= b.x + b.width))
+    return { p: { x: toward.x < b.x ? b.x : b.x + b.width, y: toward.y }, vertical: false };
+  // Diagonal (or inside the box): leave horizontally from the middle of the facing side.
+  const cy = round(b.y + b.height / 2);
+  return { p: { x: toward.x < b.x + b.width / 2 ? b.x : b.x + b.width, y: cy }, vertical: false };
+}
+
+/** Straight line where the boxes overlap in one axis, otherwise a Z through the middle of the gap. */
+function autoRoute(s: ClassBox, t: ClassBox): Point[] {
+  const ox0 = Math.max(s.x, t.x);
+  const ox1 = Math.min(s.x + s.width, t.x + t.width);
+  const oy0 = Math.max(s.y, t.y);
+  const oy1 = Math.min(s.y + s.height, t.y + t.height);
+  if (ox1 - ox0 >= 16 && (s.y + s.height <= t.y || t.y + t.height <= s.y)) {
+    const x = round((ox0 + ox1) / 2);
+    const [a, b] = s.y < t.y ? [s.y + s.height, t.y] : [s.y, t.y + t.height];
+    return [{ x, y: a }, { x, y: b }];
+  }
+  if (oy1 - oy0 >= 16 && (s.x + s.width <= t.x || t.x + t.width <= s.x)) {
+    const y = round((oy0 + oy1) / 2);
+    const [a, b] = s.x < t.x ? [s.x + s.width, t.x] : [s.x, t.x + t.width];
+    return [{ x: a, y }, { x: b, y }];
+  }
+  if (s.y + s.height <= t.y || t.y + t.height <= s.y) {
+    const sx = round(s.x + s.width / 2);
+    const tx = round(t.x + t.width / 2);
+    const down = s.y < t.y;
+    const a = down ? s.y + s.height : s.y;
+    const b = down ? t.y : t.y + t.height;
+    const m = round((a + b) / 2);
+    return [{ x: sx, y: a }, { x: sx, y: m }, { x: tx, y: m }, { x: tx, y: b }];
+  }
+  const sy = round(s.y + s.height / 2);
+  const ty = round(t.y + t.height / 2);
+  const right = s.x < t.x;
+  const a = right ? s.x + s.width : s.x;
+  const b = right ? t.x : t.x + t.width;
+  const m = round((a + b) / 2);
+  return [{ x: a, y: sy }, { x: m, y: sy }, { x: m, y: ty }, { x: b, y: ty }];
+}
+
+function dedupe(pts: Point[]): Point[] {
+  const out: Point[] = [];
+  for (const p of pts) {
+    const prev = out[out.length - 1];
+    if (prev && prev.x === p.x && prev.y === p.y) continue;
+    out.push(p);
+  }
+  return out;
+}
+
+const len = (pts: Point[], i: number) => Math.abs(pts[i]!.x - pts[i + 1]!.x) + Math.abs(pts[i]!.y - pts[i + 1]!.y);
+
+/** Puts labels next to the ends and in the middle of the longest segment of a rerouted edge. */
+function placeLabels(points: Point[], labels: EdgeLabel[]): EdgeLabel[] {
+  const at = (l: EdgeLabel, x: number, y: number) => ({ ...l, x: round(x), y: round(y) });
+  const near = (p: Point, q: Point, l: EdgeLabel) => {
+    if (p.x === q.x) return at(l, p.x + 4, q.y > p.y ? p.y + 4 : p.y - 4 - l.height);
+    return at(l, q.x > p.x ? p.x + 4 : p.x - 4 - l.width, p.y - 4 - l.height);
+  };
+  let best = 0;
+  for (let i = 1; i < points.length - 1; i++) if (len(points, i) > len(points, best)) best = i;
+  const a = points[best]!;
+  const b = points[Math.min(best + 1, points.length - 1)]!;
+  const n = points.length;
+  return labels.map((l) => {
+    if (l.kind === "source-end") return near(points[0]!, points[1]!, l);
+    if (l.kind === "target-end") return near(points[n - 1]!, points[n - 2]!, l);
+    const mx = (a.x + b.x) / 2;
+    const my = (a.y + b.y) / 2;
+    return a.x === b.x ? at(l, mx + 4, my - l.height / 2) : at(l, mx - l.width / 2, my - l.height - 2);
+  });
 }

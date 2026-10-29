@@ -37,10 +37,14 @@ const MARKER_LEN: Record<Marker, number> = { none: 0, arrow: 0, triangle: 12, di
 export function drawSvg(layout: DiagramLayout, theme: Theme = "light"): string {
   const { fg, bg } = COLORS[theme];
   const out: string[] = [];
+  const ox = layout.originX ?? 0;
+  const oy = layout.originY ?? 0;
   out.push(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${n(layout.width)}" height="${n(layout.height)}" viewBox="0 0 ${n(layout.width)} ${n(layout.height)}" font-family="${FONT_FAMILY}" font-size="${FONT_SIZE}" fill="${fg}">`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${n(layout.width)}" height="${n(layout.height)}" viewBox="${n(ox)} ${n(oy)} ${n(layout.width)} ${n(layout.height)}" font-family="${FONT_FAMILY}" font-size="${FONT_SIZE}" fill="${fg}">`,
   );
-  out.push(`<rect width="${n(layout.width)}" height="${n(layout.height)}" fill="${bg}"/>`);
+  out.push(
+    `<rect${ox || oy ? ` x="${n(ox)}" y="${n(oy)}"` : ""} width="${n(layout.width)}" height="${n(layout.height)}" fill="${bg}"/>`,
+  );
   for (const e of layout.edges) out.push(drawEdge(e, fg, bg));
   for (const c of layout.classes) out.push(drawClass(c, fg, bg));
   out.push("</svg>");
